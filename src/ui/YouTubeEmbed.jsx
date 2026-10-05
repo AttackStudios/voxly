@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Icon from './Icon.jsx';
 
 // Shows a YouTube thumbnail; click to play inline (privacy-friendly nocookie embed).
 export default function YouTubeEmbed({ id }) {
@@ -19,7 +20,7 @@ export default function YouTubeEmbed({ id }) {
   return (
     <button className="yt-embed" onClick={() => setPlaying(true)} title="Play video">
       <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="YouTube thumbnail" loading="lazy" />
-      <span className="yt-play">▶</span>
+      <span className="yt-play"><Icon name="play" size={22} /></span>
       <span className="yt-badge">YouTube</span>
     </button>
   );

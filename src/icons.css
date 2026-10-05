@@ -1,0 +1,48 @@
+/* ---------- Icon system ---------- */
+.icon { flex-shrink: 0; display: inline-block; vertical-align: middle; }
+.icon-btn, .call-btn, .rail-icon, .msg-actions button, .toast-btn, .toast-x, .modal-x, .attach-btn, .attach-remove, .pc-edit,
+.rc-btn, .rc-tile-btn, .btn-primary, .btn-ghost, .btn-success, .btn-danger, .call-min-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.icon-btn { color: #b5bac1; }
+.icon-btn:hover, .icon-btn.active { color: #f2f3f5; }
+.rail-icon { color: var(--text-bright); }
+.rail-icon.add, .rail-icon.join { color: var(--green); }
+.rail-icon.add:hover, .rail-icon.join:hover { color: #fff; }
+.rail-icon.home { color: #fff; }
+.msg-actions button { color: #b5bac1; }
+.msg-actions button:hover { color: #f2f3f5; }
+.msg-actions button.danger:hover { color: var(--red); }
+.ctx-item { display: flex; align-items: center; gap: 8px; }
+.sm-item .icon { opacity: .9; }
+.chan-hash-icon { color: #80848e; margin-right: 6px; }
+.chat-title { display: inline-flex; align-items: center; }
+.chev { display: inline-flex; }
+.voice-user { display: flex; align-items: center; gap: 6px; }
+.voice-user .icon { color: var(--green); }
+.media-badge { display: inline-flex; align-items: center; gap: 4px; }
+.bot-tag { gap: 2px; }
+.pc-badge { display: inline-flex; align-items: center; gap: 4px; }
+.pc-custom { display: inline-flex; align-items: center; gap: 6px; }
+.pc-custom .icon { color: var(--text-muted); }
+.pc-since span { display: inline-flex; align-items: center; gap: 4px; }
+.call-titlebar-text { display: inline-flex; align-items: center; gap: 6px; }
+.call-btn { color: #fff; }
+.call-btn.off { color: var(--red); }
+.voicefx-label { display: inline-flex; align-items: center; gap: 6px; }
+.attach-spin { display: flex; align-items: center; justify-content: center; color: #fff; }
+.yt-play { display: inline-flex; align-items: center; justify-content: center; }
+.rc-modal-badge { color: var(--text-bright); }
+
+/* ---------- Sound settings ---------- */
+.st-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 15px; color: var(--text-bright); cursor: pointer; position: relative; }
+.st-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.st-toggle i { width: 40px; height: 24px; border-radius: 12px; background: #80848e; position: relative; transition: background .15s; flex-shrink: 0; }
+.st-toggle i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.st-toggle input:checked + i { background: var(--green); }
+.st-toggle input:checked + i::after { transform: translateX(16px); }
+.st-range { width: 100%; accent-color: var(--blurple); }
+.sound-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.sound-chip { display: inline-flex; align-items: center; gap: 6px; background: #2b2d31; border: 1px solid #3f4147; color: var(--text); border-radius: 16px; padding: 6px 12px; font-size: 13px; }
+.sound-chip:hover:not(:disabled) { background: var(--blurple); border-color: var(--blurple); color: #fff; }
+.sound-chip:disabled { opacity: .45; cursor: not-allowed; }

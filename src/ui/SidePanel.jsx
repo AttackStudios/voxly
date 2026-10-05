@@ -4,6 +4,7 @@ import { Modal, RankBadge } from './common.jsx';
 import { api } from '../lib/api.js';
 import { bus } from '../lib/bus.js';
 import UserPanel from './UserPanel.jsx';
+import Icon from './Icon.jsx';
 
 export default function SidePanel() {
   const app = useApp();
@@ -28,14 +29,14 @@ function HomePanel() {
     <>
       <div className="panel-head">
         <span>Direct Messages</span>
-        <button className="icon-btn" title="New DM / Group" onClick={() => setShowNew(true)}>＋</button>
+        <button className="icon-btn" title="New DM / Group" onClick={() => setShowNew(true)}><Icon name="plus" size={16} /></button>
       </div>
       <div className="dm-list">
-        {dms.length === 0 && <div className="empty-hint">No conversations yet. Click ＋ to start one.</div>}
+        {dms.length === 0 && <div className="empty-hint">No conversations yet. Click + to start one.</div>}
         {dms.map((c) => (
           <button key={c.id} className={`dm-item ${activeDmId === c.id ? 'active' : ''}`} onClick={() => openDM(c.id)}>
             <div className="dm-avatar" style={{ background: c.isGroup ? '#5865F2' : (c.participants.find((p) => p.id !== me.id)?.avatarColor || '#5865F2') }}>
-              {c.isGroup ? '👥' : (c.participants.find((p) => p.id !== me.id)?.displayName || '?').slice(0, 2).toUpperCase()}
+              {c.isGroup ? <Icon name="users" size={16} /> : (c.participants.find((p) => p.id !== me.id)?.displayName || '?').slice(0, 2).toUpperCase()}
             </div>
             <span className="dm-name">{dmTitle(c)}</span>
           </button>
@@ -96,41 +97,41 @@ function ServerPanel() {
   return (
     <>
       <div className={`panel-head server-head ${menu ? 'open' : ''}`} onClick={() => setMenu((v) => !v)}>
-        <span>{server.name}</span><span className="chev">{menu ? '✕' : '▾'}</span>
+        <span>{server.name}</span><span className="chev"><Icon name={menu ? 'close' : 'chevronDown'} size={16} /></span>
       </div>
       {menu && (
         <>
           <div className="ctx-backdrop" onClick={() => setMenu(false)} />
           <div className="server-menu" onClick={() => setMenu(false)}>
-            <button className="sm-item accent" onClick={() => setShowInvite(true)}>Invite People <span>👤＋</span></button>
-            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'overview' })}>Server Settings <span>⚙️</span></button>}
-            {canManage && <button className="sm-item" onClick={() => setShowCreate('text')}>Create Channel <span>＋</span></button>}
-            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'bots' })}>Add a Bot <span>🤖</span></button>}
+            <button className="sm-item accent" onClick={() => setShowInvite(true)}>Invite People <Icon name="userPlus" size={16} /></button>
+            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'overview' })}>Server Settings <Icon name="settings" size={16} /></button>}
+            {canManage && <button className="sm-item" onClick={() => setShowCreate('text')}>Create Channel <Icon name="plus" size={16} /></button>}
+            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'bots' })}>Add a Bot <Icon name="bot" size={16} /></button>}
             {!isOwner && (
               <>
                 <div className="sm-sep" />
-                <button className="sm-item danger" onClick={() => { if (window.confirm(`Leave ${server.name}?`)) leaveServer(server.id); }}>Leave Server <span>⎋</span></button>
+                <button className="sm-item danger" onClick={() => { if (window.confirm(`Leave ${server.name}?`)) leaveServer(server.id); }}>Leave Server <Icon name="logout" size={16} /></button>
               </>
             )}
           </div>
         </>
       )}
       <div className="channel-list">
-        <div className="chan-cat">TEXT CHANNELS {canManage && <button className="icon-btn sm" onClick={() => setShowCreate('text')}>＋</button>}</div>
+        <div className="chan-cat">TEXT CHANNELS {canManage && <button className="icon-btn sm" onClick={() => setShowCreate('text')}><Icon name="plus" size={14} /></button>}</div>
         {text.map((c) => (
           <button key={c.id} className={`chan-item ${activeChannelId === c.id ? 'active' : ''}`} onClick={() => openChannel(c.id)}>
-            <span className="chan-hash">#</span>{c.name}
+            <Icon name="hash" className="chan-hash-icon" size={18} />{c.name}
           </button>
         ))}
-        <div className="chan-cat">VOICE CHANNELS {canManage && <button className="icon-btn sm" onClick={() => setShowCreate('voice')}>＋</button>}</div>
+        <div className="chan-cat">VOICE CHANNELS {canManage && <button className="icon-btn sm" onClick={() => setShowCreate('voice')}><Icon name="plus" size={14} /></button>}</div>
         {voice.map((c) => (
           <div key={c.id} className="voice-block">
             <button className="chan-item" onClick={() => bus.emit('call:start', { type: 'voice', channelId: c.id, video: false })}>
-              <span className="chan-hash">🔊</span>{c.name}
+              <Icon name="volume" className="chan-hash-icon" size={18} />{c.name}
             </button>
             {(voiceStates[c.id] || []).map((uid) => {
               const m = serverData.members.find((mm) => mm.id === uid);
-              return <div key={uid} className="voice-user">🎙 {m?.displayName || 'User'}</div>;
+              return <div key={uid} className="voice-user"><Icon name="mic" size={13} /> {m?.displayName || 'User'}</div>;
             })}
           </div>
         ))}
@@ -167,7 +168,7 @@ function InviteModal({ server, onClose }) {
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <p className="auth-note">They enter it via the 🔗 button on the left rail of Voxly.</p>
+      <p className="auth-note">They enter it via the compass button on the left rail of Voxly.</p>
     </Modal>
   );
 }

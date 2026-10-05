@@ -2,6 +2,7 @@ import { useApp } from '../state/AppContext.jsx';
 import { Avatar, RankBadge } from './common.jsx';
 import { bus } from '../lib/bus.js';
 import { openProfile } from './ProfileCard.jsx';
+import Icon from './Icon.jsx';
 
 export default function UserPanel() {
   const { me } = useApp();
@@ -17,7 +18,7 @@ export default function UserPanel() {
         <div className="user-panel-tag">{me.customStatus || `#${me.tag}`}</div>
       </div>
       </button>
-      <button className="icon-btn" title="User Settings" onClick={() => bus.emit('settings:open', { tab: 'account' })}>⚙️</button>
+      <button className="icon-btn" title="User Settings" onClick={() => bus.emit('settings:open', { tab: 'account' })}><Icon name="settings" size={19} /></button>
     </div>
   );
 }

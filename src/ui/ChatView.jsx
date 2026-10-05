@@ -9,6 +9,7 @@ import { directory, useDirectory } from '../lib/directory.js';
 import Embed from './Embed.jsx';
 import { openProfile } from './ProfileCard.jsx';
 import YouTubeEmbed from './YouTubeEmbed.jsx';
+import Icon from './Icon.jsx';
 
 export default function ChatView({ showMembers, toggleMembers }) {
   const app = useApp();
@@ -50,7 +51,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
         <div className="empty-state">
           <img className="empty-logo" src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Voxly" />
           <h2>Welcome to Voxly</h2>
-          <p>Select a channel or a DM to start chatting. Create a server with ＋, or start a DM from the Home panel.</p>
+          <p>Select a channel or a DM to start chatting. Create a server with the + button, or start a DM from the Home panel.</p>
         </div>
       </div>
     );
@@ -105,21 +106,21 @@ export default function ChatView({ showMembers, toggleMembers }) {
     <div className="chat-view">
       <div className="chat-header">
         <span className="chat-title">
-          {isServer ? <span className="chan-hash">#</span> : '@'} {title}
+          {isServer ? <Icon name="hash" className="chan-hash-icon" /> : <Icon name="at" className="chan-hash-icon" />} {title}
         </span>
         <div className="chat-header-actions">
           {isDM && (
             <>
               <button className="icon-btn" title="Start voice call"
-                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: false })}>📞</button>
+                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: false })}><Icon name="phone" /></button>
               <button className="icon-btn" title="Start video call"
-                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: true })}>📹</button>
+                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: true })}><Icon name="video" /></button>
               <button className="icon-btn" title="Share screen"
-                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: false, screen: true })}>🖥️</button>
+                onClick={() => bus.emit('call:start', { type: 'dm', dmId: dm.id, targets: dm.participants.filter((p) => p.id !== me.id), video: false, screen: true })}><Icon name="screen" /></button>
             </>
           )}
           {isServer && (
-            <button className={`icon-btn ${showMembers ? 'active' : ''}`} title="Toggle members" onClick={toggleMembers}>👥</button>
+            <button className={`icon-btn ${showMembers ? 'active' : ''}`} title="Toggle members" onClick={toggleMembers}><Icon name="users" /></button>
           )}
         </div>
       </div>
@@ -155,7 +156,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
                 {!grouped && (
                   <div className="msg-head">
                     <span className="msg-author" style={{ color: m.author?.globalRankMeta?.color }} onClick={(e) => openProfile(e, m.authorId, serverId)}>{m.author?.displayName}</span>
-                    {m.author?.bot && <span className="bot-tag">✓ BOT</span>}
+                    {m.author?.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}
                     {m.author?.globalRankMeta && <span className="rank-badge" style={{ background: m.author.globalRankMeta.color }}>{m.author.globalRankMeta.label}</span>}
                     <span className="msg-time">{new Date(m.createdAt).toLocaleString()}</span>
                   </div>
@@ -183,9 +184,9 @@ export default function ChatView({ showMembers, toggleMembers }) {
               </div>
               {!editing && (
                 <div className="msg-actions">
-                  <button title="Reply" onClick={() => setReplyTo(m)}>↩️</button>
-                  {mine && m.content && <button title="Edit" onClick={startEdit}>✏️</button>}
-                  {(mine || canModerate) && <button title="Delete" onClick={() => { if (window.confirm('Delete this message?')) deleteMessage(m.id); }}>🗑️</button>}
+                  <button title="Reply" onClick={() => setReplyTo(m)}><Icon name="reply" size={18} /></button>
+                  {mine && m.content && <button title="Edit" onClick={startEdit}><Icon name="edit" size={18} /></button>}
+                  {(mine || canModerate) && <button title="Delete" onClick={() => { if (window.confirm('Delete this message?')) deleteMessage(m.id); }} className="danger"><Icon name="trash" size={18} /></button>}
                 </div>
               )}
             </div>
@@ -202,8 +203,8 @@ export default function ChatView({ showMembers, toggleMembers }) {
           {pending.map((p) => (
             <div key={p.localId} className={`attach-chip ${p.uploading ? 'loading' : ''}`}>
               <img src={p.preview} alt={p.name} />
-              {p.uploading && <div className="attach-spin">⏳</div>}
-              <button className="attach-remove" onClick={() => setPending((arr) => arr.filter((x) => x.localId !== p.localId))}>✕</button>
+              {p.uploading && <div className="attach-spin"><Icon name="clock" size={22} /></div>}
+              <button className="attach-remove" onClick={() => setPending((arr) => arr.filter((x) => x.localId !== p.localId))}><Icon name="close" size={12} stroke={3} /></button>
             </div>
           ))}
         </div>
@@ -212,7 +213,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
       {replyTo && (
         <div className="reply-bar">
           Replying to <b>{replyTo.author?.displayName}</b>
-          <button type="button" onClick={() => setReplyTo(null)} title="Cancel reply">✕</button>
+          <button type="button" onClick={() => setReplyTo(null)} title="Cancel reply"><Icon name="close" size={10} stroke={3} /></button>
         </div>
       )}
       <form className={`composer ${dragOver ? 'drag' : ''} ${replyTo ? 'replying' : ''}`} onSubmit={submit}
@@ -220,7 +221,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
         onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
         <input type="file" accept="image/*" multiple ref={fileInputRef} style={{ display: 'none' }}
           onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
-        <button type="button" className="attach-btn" title="Upload image" onClick={() => fileInputRef.current?.click()}>＋</button>
+        <button type="button" className="attach-btn" title="Upload image" onClick={() => fileInputRef.current?.click()}><Icon name="plus" size={20} stroke={2.5} /></button>
         <input className="composer-text" value={text} onChange={onChange} onPaste={onPaste}
           onKeyDown={(e) => { if (e.key === 'Escape' && replyTo) setReplyTo(null); }}
           placeholder={dragOver ? 'Drop images to upload…' : `Message ${isServer ? '#' + title : title}`} />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
 import { bus } from '../lib/bus.js';
+import Icon from './Icon.jsx';
 
 export default function Toasts() {
   const { toasts, dismissToast, openDM, openChannel, openServer, socket } = useApp();
@@ -34,7 +35,7 @@ function Toast({ t, onClose, onOpen, onReply, onCall }) {
           </div>
           <div className="toast-body">{t.body}</div>
         </div>
-        <button className="toast-x" onClick={(e) => { e.stopPropagation(); onClose(); }}>✕</button>
+        <button className="toast-x" onClick={(e) => { e.stopPropagation(); onClose(); }}><Icon name="close" size={14} /></button>
       </div>
       {t.link && (
         <div className="toast-actions">
@@ -46,8 +47,8 @@ function Toast({ t, onClose, onOpen, onReply, onCall }) {
         <input className="toast-reply" placeholder="Quick reply…" value={reply}
           onChange={(e) => setReply(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && reply.trim()) onReply(reply.trim()); }} />
-        <button className="toast-btn" title="Send" onClick={() => reply.trim() && onReply(reply.trim())}>➤</button>
-        {t.dmId && <button className="toast-btn call" title="Call" onClick={onCall}>📞</button>}
+        <button className="toast-btn" title="Send" onClick={() => reply.trim() && onReply(reply.trim())}><Icon name="send" size={16} /></button>
+        {t.dmId && <button className="toast-btn call" title="Call" onClick={onCall}><Icon name="phone" size={16} /></button>}
       </div>
       )}
     </div>

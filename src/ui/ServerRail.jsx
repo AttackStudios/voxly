@@ -2,6 +2,7 @@ import { assetUrl } from '../lib/api.js';
 import { useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
 import { Modal } from './common.jsx';
+import Icon from './Icon.jsx';
 
 export default function ServerRail() {
   const { servers, view, openHome, openServer, createServer, joinServer } = useApp();
@@ -24,7 +25,7 @@ export default function ServerRail() {
     <div className="server-rail">
       <button
         className={`rail-icon home ${view.type === 'home' ? 'active' : ''}`}
-        onClick={openHome} title="Direct Messages">🏠</button>
+        onClick={openHome} title="Direct Messages"><Icon name="home" size={24} /></button>
       <div className="rail-sep" />
       {servers.map((s) => (
         <button key={s.id}
@@ -34,8 +35,8 @@ export default function ServerRail() {
           {s.iconUrl ? <img className="rail-img" src={assetUrl(s.iconUrl)} alt={s.name} /> : s.name.slice(0, 2).toUpperCase()}
         </button>
       ))}
-      <button className="rail-icon add" onClick={() => { setErr(''); setModal('create'); }} title="Add a server">＋</button>
-      <button className="rail-icon join" onClick={() => { setErr(''); setModal('join'); }} title="Join a server">🔗</button>
+      <button className="rail-icon add" onClick={() => { setErr(''); setModal('create'); }} title="Add a server"><Icon name="plus" size={24} /></button>
+      <button className="rail-icon join" onClick={() => { setErr(''); setModal('join'); }} title="Join a server"><Icon name="compass" size={24} /></button>
 
       {modal === 'create' && (
         <Modal title="Create a Server" onClose={() => setModal(null)}

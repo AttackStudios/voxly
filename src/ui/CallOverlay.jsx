@@ -3,6 +3,8 @@ import { useApp } from '../state/AppContext.jsx';
 import { CallManager } from '../lib/webrtc.js';
 import { VOICE_EFFECTS } from '../lib/voicefx.js';
 import { bus } from '../lib/bus.js';
+import { sfx } from '../lib/sounds.js';
+import Icon from './Icon.jsx';
 import { api } from '../lib/api.js';
 import { useRemoteSharer, useRemoteHelper, ControlView } from './RemoteControl.jsx';
 
@@ -74,8 +76,8 @@ export default function CallOverlay() {
   const ensureManager = useCallback(() => {
     if (!mgr.current) {
       mgr.current = new CallManager(s(), me.id);
-      mgr.current.onRemoteStream = (uid, stream) => setRemote((r) => ({ ...r, [uid]: stream }));
-      mgr.current.onPeerLeft = (uid) => setRemote((r) => { const n = { ...r }; delete n[uid]; return n; });
+      mgr.current.onRemoteStream = (uid, stream) => setRemote((r) => { if (!r[uid]) sfx.play('join'); return { ...r, [uid]: stream }; });
+      mgr.current.onPeerLeft = (uid) => setRemote((r) => { if (r[uid]) sfx.play('leave'); const n = { ...r }; delete n[uid]; return n; });
       // keep sharing UI in sync even when the user stops sharing via the OS/browser bar
       mgr.current.onScreenChange = (on, stream) => { setSharing(on); setScreenStream(stream || null); };
     }
@@ -88,6 +90,7 @@ export default function CallOverlay() {
     if (sh.controller) sh.stopControl();
     if (call?.mode === 'voice') s()?.emit('voice:leave', { channelId: call.channelId });
     if (call?.mode === 'dm' && notifyTargets) (call.targets || []).forEach((t) => s()?.emit('call:end', { to: t.id, dmId: call.dmId }));
+    if (mgr.current) sfx.play(call?.status === 'ringing' && call?.incoming ? 'leave' : 'hangup');
     mgr.current?.hangup();
     mgr.current = null;
     localStreamRef.current = null;
@@ -114,6 +117,7 @@ export default function CallOverlay() {
         return;
       }
       if (opts.type === 'voice') {
+        sfx.play('join');
         setCall({ mode: 'voice', channelId: opts.channelId, video: !!opts.video, status: 'active' });
         s().emit('voice:join', { channelId: opts.channelId });
       } else {
@@ -166,6 +170,11 @@ export default function CallOverlay() {
     return () => sock.off('connect', rejoin);
   }, [call?.mode, call?.channelId]);
 
+  useEffect(() => {
+    if (call?.status !== 'ringing') return;
+    return sfx.loop(call.incoming ? 'ring' : 'ringback');
+  }, [call?.status, call?.incoming]);
+
   // green "speaking" ring when your mic picks up sound (and you're not muted)
   const localSpeaking = useSpeaking(micOn ? localAudioStream : null);
 
@@ -197,13 +206,14 @@ export default function CallOverlay() {
 
   function toggleMic() {
     const v = !micOn; setMicOn(v); mgr.current?.toggleAudio(v);
-    // 🤫 secret: 6 mic presses within 4s unlocks the live voice changer
+    sfx.play(v ? 'unmute' : 'mute');
+    // secret: 6 mic presses within 4s unlocks the live voice changer
     const now = Date.now();
     micToggles.current = micToggles.current.filter((t) => now - t < 4000).concat(now);
     if (!fxUnlocked && micToggles.current.length >= 6) {
       setFxUnlocked(true);
       micToggles.current = [];
-      pushToast({ title: '🎭 Voice changer unlocked', body: 'Pick an effect below — others in the call will hear it live.' });
+      pushToast({ title: 'Voice changer unlocked', body: 'Pick an effect below — others in the call will hear it live.' });
     }
   }
   function pickEffect(id) {
@@ -238,9 +248,10 @@ export default function CallOverlay() {
   async function toggleScreen(force) {
     const want = force ?? !sharing;
     if (want) {
-      try { const ss = await mgr.current.shareScreen(); setScreenStream(ss); setSharing(true); return ss; }
+      try { const ss = await mgr.current.shareScreen(); setScreenStream(ss); setSharing(true); sfx.play('streamStart'); return ss; }
       catch { return null; }
     }
+    if (sharing) sfx.play('streamStop');
     mgr.current?.stopScreen(); setScreenStream(null); setSharing(false); return null;
   }
 
@@ -279,10 +290,11 @@ export default function CallOverlay() {
       )}
       <div className="call-titlebar">
         <span className="call-titlebar-text">
-          {call?.mode === 'voice' ? '🔊 Voice channel' : '📞 Call'}{call?.status === 'ringing' ? ' · ringing…' : ''}
+          <Icon name={call?.mode === 'voice' ? 'volume' : 'phone'} size={14} />
+          {call?.mode === 'voice' ? 'Voice channel' : 'Call'}{call?.status === 'ringing' ? ' · ringing…' : ''}
         </span>
         <button className="call-min-btn" title={minimized ? 'Expand' : 'Minimize (keep using the app)'}
-          onClick={() => setMinimized((m) => !m)}>{minimized ? '⤢' : '—'}</button>
+          onClick={() => setMinimized((m) => !m)}><Icon name={minimized ? 'maximize' : 'minimize'} size={16} /></button>
       </div>
       <div className="call-grid">
         <div className={`tile local ${localSpeaking ? 'speaking' : ''}`}>
@@ -290,9 +302,9 @@ export default function CallOverlay() {
             ? <video ref={localVideoRef} autoPlay playsInline muted />
             : <div className={`tile-av ${localSpeaking ? 'speaking' : ''}`} style={{ background: me.avatarColor }}>{me.displayName.slice(0, 2).toUpperCase()}</div>}
           <div className="media-badges">
-            {sharing && <span className="media-badge screen">🖥️ Screen</span>}
-            {camOn && <span className="media-badge cam">📹 Camera</span>}
-            {!sharing && !camOn && <span className="media-badge voice">{micOn ? '🎙️' : '🔇'} Voice only</span>}
+            {sharing && <span className="media-badge screen"><Icon name="screen" size={12} /> Screen</span>}
+            {camOn && <span className="media-badge cam"><Icon name="video" size={12} /> Camera</span>}
+            {!sharing && !camOn && <span className="media-badge voice"><Icon name={micOn ? 'mic' : 'micOff'} size={12} /> Voice only</span>}
           </div>
           <div className="tile-name">You</div>
         </div>
@@ -307,7 +319,7 @@ export default function CallOverlay() {
 
       {fxUnlocked && !minimized && (
         <div className="voicefx-bar">
-          <span className="voicefx-label">🎭 Voice changer</span>
+          <span className="voicefx-label"><Icon name="mask" size={14} /> Voice changer</span>
           {VOICE_EFFECTS.map((fx) => (
             <button key={fx.id} className={`voicefx-btn ${fxEffect === fx.id ? 'on' : ''}`} onClick={() => pickEffect(fx.id)}>
               {fx.label}
@@ -317,19 +329,19 @@ export default function CallOverlay() {
       )}
 
       <div className="call-controls">
-        <button className={`call-btn ${micOn ? '' : 'off'}`} onClick={toggleMic} title={micOn ? 'Mute' : 'Unmute'}>{micOn ? '🎙️' : '🔇'}</button>
+        <button className={`call-btn ${micOn ? '' : 'off'}`} onClick={toggleMic} title={micOn ? 'Mute' : 'Unmute'}><Icon name={micOn ? 'mic' : 'micOff'} size={22} /></button>
         <div className="cam-group">
-          <button className={`call-btn ${camOn ? 'on' : ''}`} onClick={toggleCam} title="Camera">📹</button>
+          <button className={`call-btn ${camOn ? 'on' : ''}`} onClick={toggleCam} title={camOn ? 'Turn off camera' : 'Turn on camera'}><Icon name={camOn ? 'video' : 'videoOff'} size={22} /></button>
           {cameras.length > 0 && (
             <select className="cam-select" value={camId || ''} onChange={(e) => pickCamera(e.target.value)} title="Choose camera">
               {cameras.map((c) => (
-                <option key={c.deviceId} value={c.deviceId}>{c.virtual ? '⚠ ' : ''}{c.label}</option>
+                <option key={c.deviceId} value={c.deviceId}>{c.virtual ? '(virtual) ' : ''}{c.label}</option>
               ))}
             </select>
           )}
         </div>
-        <button className={`call-btn ${sharing ? 'on' : ''}`} onClick={() => toggleScreen()} title="Share screen">🖥️</button>
-        <button className="call-btn hang" onClick={() => endCall(true)} title="Leave call">📴</button>
+        <button className={`call-btn ${sharing ? 'on' : ''}`} onClick={() => toggleScreen()} title={sharing ? 'Stop sharing' : 'Share your screen'}><Icon name={sharing ? 'screenOff' : 'screen'} size={22} /></button>
+        <button className="call-btn hang" onClick={() => endCall(true)} title="Disconnect"><Icon name="phoneOff" size={24} /></button>
       </div>
     </div>
     </>
@@ -359,14 +371,14 @@ function RemoteTile({ stream, name, rc, onRequest, onCancel }) {
     <div className={`tile ${speaking ? 'speaking' : ''}`}>
       <video ref={ref} autoPlay playsInline />
       <div className="media-badges">
-        <span className={`media-badge ${hasVideo ? 'cam' : 'voice'}`}>{hasVideo ? '📺 Video / Screen' : '🎙️ Voice'}</span>
+        <span className={`media-badge ${hasVideo ? 'cam' : 'voice'}`}><Icon name={hasVideo ? 'screen' : 'mic'} size={12} /> {hasVideo ? 'Video / Screen' : 'Voice'}</span>
       </div>
       {hasVideo && (
         rc === 'requested'
-          ? <button className="rc-tile-btn waiting" onClick={onCancel} title="Cancel request">⏳ Waiting for {name}… <span>Cancel</span></button>
+          ? <button className="rc-tile-btn waiting" onClick={onCancel} title="Cancel request"><Icon name="clock" size={13} /> Waiting for {name}… <span>Cancel</span></button>
           : rc === 'controlling'
-            ? <span className="rc-tile-btn live">🖱️ You’re in control</span>
-            : <button className="rc-tile-btn" onClick={onRequest} title={`Ask ${name} if you can control their screen`}>🖱️ Request control</button>
+            ? <span className="rc-tile-btn live"><Icon name="pointer" size={13} /> You’re in control</span>
+            : <button className="rc-tile-btn" onClick={onRequest} title={`Ask ${name} if you can control their screen`}><Icon name="pointer" size={13} /> Request control</button>
       )}
       <div className="tile-name">{name}</div>
     </div>

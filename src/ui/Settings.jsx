@@ -4,12 +4,14 @@ import { api, uploadImage, assetUrl } from '../lib/api.js';
 import { bus } from '../lib/bus.js';
 import { Avatar } from './common.jsx';
 import { ProfileCard } from './ProfileCard.jsx';
+import { sfx } from '../lib/sounds.js';
+import Icon from './Icon.jsx';
 
 const COLORS = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#3498db', '#9b59b6', '#1abc9c', '#e67e22', '#2c2f33'];
 const DOCS = 'https://github.com/AttackStudios/voxly/blob/worktree-web/BOTS.md';
 
 // Discord-style full-screen settings: sidebar on the left, page on the right,
-// ESC / ✕ to close, and a sticky "unsaved changes" bar.
+// ESC / the close button to close, and a sticky "unsaved changes" bar.
 function SettingsShell({ sections, tab, setTab, onClose, children }) {
   useEffect(() => {
     const k = (e) => e.key === 'Escape' && onClose();
@@ -30,7 +32,7 @@ function SettingsShell({ sections, tab, setTab, onClose, children }) {
       <main className="st-main">
         <div className="st-content">{children}</div>
         <div className="st-close">
-          <button onClick={onClose} title="Close (Esc)">✕</button><span>ESC</span>
+          <button onClick={onClose} title="Close (Esc)"><Icon name="close" size={18} /></button><span>ESC</span>
         </div>
       </main>
     </div>
@@ -181,21 +183,55 @@ function ProfilePage() {
   );
 }
 
+const SOUND_LABELS = [
+  ['message', 'Message'], ['mention', 'Mention'], ['join', 'User join'], ['leave', 'User leave'],
+  ['mute', 'Mute'], ['unmute', 'Unmute'], ['streamStart', 'Stream start'], ['streamStop', 'Stream stop'],
+  ['ring', 'Incoming ring'], ['ringback', 'Outgoing ring'], ['hangup', 'Disconnect'], ['request', 'Control request'],
+];
+function SoundSettings() {
+  const [s, setS] = useState(sfx.settings());
+  const update = (patch) => { sfx.save(patch); setS(sfx.settings()); };
+  return (
+    <>
+      <div className="st-label">Sounds</div>
+      <label className="st-toggle">
+        <span>Play sounds for messages, calls and voice</span>
+        <input type="checkbox" checked={s.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+        <i />
+      </label>
+      <div className="st-label">Volume</div>
+      <input type="range" className="st-range" min="0" max="1" step="0.05" value={s.volume}
+        onChange={(e) => update({ volume: +e.target.value })} onMouseUp={() => sfx.play('message')} />
+      <div className="st-label">Preview</div>
+      <div className="sound-grid">
+        {SOUND_LABELS.map(([id, label]) => (
+          <button key={id} className="sound-chip" onClick={() => sfx.play(id)} disabled={!s.enabled}>
+            <Icon name="play" size={10} /> {label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function NotificationsPage() {
   const status = !('Notification' in window) ? 'not supported in this browser' : Notification.permission;
   function test() {
     if (!('Notification' in window)) return;
-    const fire = () => new Notification('Voxly', { body: 'Notifications are working! 🎉', icon: `${import.meta.env.BASE_URL}favicon.svg` });
+    const fire = () => new Notification('Voxly', { body: 'Notifications are working!', icon: `${import.meta.env.BASE_URL}favicon.svg` });
     if (Notification.permission === 'granted') fire();
     else Notification.requestPermission().then((p) => p === 'granted' && fire());
   }
   return (
     <>
       <h1>Notifications</h1>
+      <SoundSettings />
+      <div className="st-divider" />
+      <div className="st-label">Desktop notifications</div>
       {window.desktop ? <p className="st-hint">The desktop app shows its own notifications in the corner of your screen.</p> : (
         <>
-          <p className="st-hint">Browser permission: <b>{status}</b>. If it says “denied”, click the 🔒 icon left of the address bar → Notifications → Allow.</p>
-          <button className="btn-primary" onClick={test}>🔔 Send test notification</button>
+          <p className="st-hint">Browser permission: <b>{status}</b>. If it says “denied”, click the lock icon left of the address bar → Notifications → Allow.</p>
+          <button className="btn-primary" onClick={test}><Icon name="bell" size={16} /> Send test notification</button>
         </>
       )}
     </>
@@ -229,7 +265,7 @@ function DeveloperPage() {
       </p>
       <form className="dev-new" onSubmit={create}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Bot name, e.g. Cat Bot" maxLength={32} />
-        <button className="btn-primary" disabled={!name.trim()}>＋ New Bot</button>
+        <button className="btn-primary" disabled={!name.trim()}><Icon name="plus" size={16} stroke={2.5} /> New Bot</button>
       </form>
       {bots === null && <div className="st-hint">Loading…</div>}
       {bots?.length === 0 && <div className="dev-empty">You haven’t made any bots yet.</div>}
@@ -254,7 +290,7 @@ function BotCard({ bot, reload, reveal, onToken }) {
     <div className="dev-bot">
       <div className="dev-bot-head">
         <ImagePick className="dev-bot-av" onPicked={(url) => patch({ avatarUrl: url })}>
-          <Avatar user={bot} size={64} /><span className="avatar-edit-overlay">📷</span>
+          <Avatar user={bot} size={64} /><span className="avatar-edit-overlay"><Icon name="camera" size={20} /></span>
         </ImagePick>
         <div className="dev-bot-meta">
           <input className="dev-bot-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={32} />
@@ -370,7 +406,7 @@ function ServerInvites({ server }) {
   return (
     <>
       <h1>Invites</h1>
-      <p className="st-hint">Friends join with this code using the 🔗 button on the left. Making a new code stops the old one working.</p>
+      <p className="st-hint">Friends join with this code using the compass button on the left. Making a new code stops the old one working.</p>
       <div className="invite-code-row">
         <code className="invite-code">{server.inviteCode}</code>
         <button className="btn-primary" onClick={() => { navigator.clipboard?.writeText(server.inviteCode); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? 'Copied!' : 'Copy'}</button>
@@ -410,7 +446,7 @@ function ServerBots() {
       {inServer.length === 0 && <div className="dev-empty">No bots yet.</div>}
       {inServer.map((b) => (
         <div key={b.id} className="bot-row">
-          <Avatar user={b} size={32} /><span>{b.displayName}<span className="bot-tag">✓ BOT</span></span>
+          <Avatar user={b} size={32} /><span>{b.displayName}<span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span></span>
           <button className="btn-danger sm" onClick={async () => { if (window.confirm(`Remove ${b.displayName}?`)) await api.removeMember(serverData.server.id, b.id); }}>Remove</button>
         </div>
       ))}

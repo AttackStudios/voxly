@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sfx } from '../lib/sounds.js';
+import Icon from './Icon.jsx';
 
 // Remote control, both sides.
 //  • Helper (any browser): asks to control someone's shared screen, then drives
@@ -34,9 +36,9 @@ export function useRemoteSharer({ sock, sharing, screenStream, startSharing, pus
   controllerRef.current = controller;
 
   useSocketEvents(sock, {
-    'rc:request': ({ from }) => { setProblem(null); setRequest({ from }); },
+    'rc:request': ({ from }) => { sfx.play('request'); setProblem(null); setRequest({ from }); },
     'rc:cancelled': ({ peerId }) => setRequest((r) => (r?.from.id === peerId ? null : r)),
-    'rc:started': ({ peer }) => setController(peer),
+    'rc:started': ({ peer }) => { sfx.play('streamStart'); setController(peer); },
     'rc:input': (ev) => window.desktop?.remote?.input(ev),
     'rc:ended': () => { window.desktop?.remote?.stop(); setController(null); },
     'rc:needs-desktop': ({ from }) => pushToast({
@@ -86,7 +88,7 @@ export function useRemoteSharer({ sock, sharing, screenStream, startSharing, pus
       <div className="rc-modal" role="dialog" aria-modal="true">
         <div className="rc-modal-av" style={{ background: request.from.avatarColor }}>
           {request.from.avatarUrl ? <img src={request.from.avatarUrl} alt="" /> : request.from.displayName.slice(0, 2).toUpperCase()}
-          <span className="rc-modal-badge">🖱️</span>
+          <span className="rc-modal-badge"><Icon name="pointer" size={16} /></span>
         </div>
         <h2><b>{request.from.displayName}</b> wants to control your screen</h2>
         <ul className="rc-modal-list">
@@ -119,7 +121,7 @@ export function useRemoteHelper({ sock, pushToast, nameOf }) {
   const set = (peerId, v) => setState((s) => { const n = { ...s }; if (v) n[peerId] = v; else delete n[peerId]; return n; });
 
   useSocketEvents(sock, {
-    'rc:granted': ({ peerId, platform }) => { set(peerId, 'controlling'); setPeerPlatform((p) => ({ ...p, [peerId]: platform })); },
+    'rc:granted': ({ peerId, platform }) => { sfx.play('streamStart'); set(peerId, 'controlling'); setPeerPlatform((p) => ({ ...p, [peerId]: platform })); },
     'rc:denied': ({ peerId }) => { set(peerId, null); pushToast({ title: 'Request declined', body: `${nameOf(peerId)} didn’t allow control.` }); },
     'rc:unavailable': ({ peerId }) => {
       set(peerId, null);
@@ -233,7 +235,7 @@ export function ControlView({ sock, peerId, name, stream, platform, onStop }) {
         <span className="rc-live-dot" />
         <span className="rc-view-title">Controlling <b>{name}</b>’s screen</span>
         <span className="rc-view-hint">{locked ? 'Hold Esc to exit full screen' : 'Your keyboard and mouse go to their computer'}</span>
-        <button className="rc-btn ghost sm" onClick={toggleFullscreen}>{document.fullscreenElement ? 'Exit full screen' : '⛶ Full screen'}</button>
+        <button className="rc-btn ghost sm" onClick={toggleFullscreen}><Icon name="fullscreen" size={14} /> {document.fullscreenElement ? 'Exit full screen' : 'Full screen'}</button>
         <button className="rc-btn stop sm" onClick={stop}>Stop controlling</button>
       </div>
       <video

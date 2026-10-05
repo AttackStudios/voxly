@@ -4,6 +4,7 @@ import { api, assetUrl } from '../lib/api.js';
 import { bus } from '../lib/bus.js';
 import { directory } from '../lib/directory.js';
 import { renderMarkup } from '../lib/markup.jsx';
+import Icon from './Icon.jsx';
 
 // Discord-style profile popout. Open from anywhere with
 //   bus.emit('profile:open', { userId, x, y, serverId })
@@ -86,23 +87,23 @@ export function ProfileCard({ req, onClose, preview }) {
           <span className={`pc-status status-${status}`} title={status} />
         </div>
         {isMe && !preview && (
-          <button className="pc-edit" onClick={() => { onClose?.(); bus.emit('settings:open', { tab: 'profile' }); }}>✏️ Edit Profile</button>
+          <button className="pc-edit" onClick={() => { onClose?.(); bus.emit('settings:open', { tab: 'profile' }); }}><Icon name="edit" size={14} /> Edit Profile</button>
         )}
       </div>
       <div className="pc-body">
         <div className="pc-names">
-          <div className="pc-display">{member?.nickname || u.displayName}{u.bot && <span className="bot-tag">✓ BOT</span>}</div>
+          <div className="pc-display">{member?.nickname || u.displayName}{u.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}</div>
           <div className="pc-user">
             {u.displayName.toLowerCase().replace(/\s+/g, '')}{!u.bot && <span className="pc-tag">#{u.tag}</span>}
             {u.pronouns && <><span className="pc-dot">•</span>{u.pronouns}</>}
           </div>
           {(u.globalRankMeta || member?.isOwner) && (
             <div className="pc-badges">
-              {member?.isOwner && <span className="pc-badge" title="Server Owner">👑 Server Owner</span>}
-              {u.globalRankMeta && <span className="pc-badge" style={{ color: u.globalRankMeta.color }} title={`Voxly ${u.globalRankMeta.label}`}>★ {u.globalRankMeta.label}</span>}
+              {member?.isOwner && <span className="pc-badge" title="Server Owner"><Icon name="crown" size={13} style={{ color: '#f0b232' }} /> Server Owner</span>}
+              {u.globalRankMeta && <span className="pc-badge" style={{ color: u.globalRankMeta.color }} title={`Voxly ${u.globalRankMeta.label}`}><Icon name="star" size={13} /> {u.globalRankMeta.label}</span>}
             </div>
           )}
-          {u.customStatus && <div className="pc-custom">💬 {u.customStatus}</div>}
+          {u.customStatus && <div className="pc-custom"><Icon name="message" size={14} /> {u.customStatus}</div>}
         </div>
 
         <div className="pc-inner">
@@ -120,7 +121,7 @@ export function ProfileCard({ req, onClose, preview }) {
               <div className="pc-label">Member Since</div>
               <div className="pc-since">
                 <span title="Joined Voxly"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" /> {fmtDate(u.createdAt)}</span>
-                {member?.joinedAt && <><span className="pc-dot">•</span><span title="Joined this server">🏠 {fmtDate(member.joinedAt)}</span></>}
+                {member?.joinedAt && <><span className="pc-dot">•</span><span title="Joined this server"><Icon name="home" size={14} /> {fmtDate(member.joinedAt)}</span></>}
               </div>
               {member && (
                 <>

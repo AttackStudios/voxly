@@ -4,6 +4,7 @@ import { AppProvider } from './state/AppContext.jsx'
 import App from './App.jsx'
 import './App.css'
 import './platform.css'
+import './icons.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

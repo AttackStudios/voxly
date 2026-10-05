@@ -1,4 +1,5 @@
 import { assetUrl } from '../lib/api.js';
+import Icon from './Icon.jsx';
 
 export function Avatar({ user, size = 40, status }) {
   const initials = (user?.displayName || '?').slice(0, 2).toUpperCase();
@@ -25,7 +26,7 @@ export function Modal({ title, onClose, children, footer }) {
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="modal-x" onClick={onClose}>✕</button>
+          <button className="modal-x" onClick={onClose}><Icon name="close" size={18} /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}

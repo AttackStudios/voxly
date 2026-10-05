@@ -3,6 +3,7 @@ import { useApp } from '../state/AppContext.jsx';
 import { Avatar, RankBadge } from './common.jsx';
 import { bus } from '../lib/bus.js';
 import { openProfile } from './ProfileCard.jsx';
+import Icon from './Icon.jsx';
 
 export default function MemberList() {
   const { view, serverData, me, presence, setMemberRank, startDM } = useApp();
@@ -31,7 +32,7 @@ export default function MemberList() {
         <Avatar user={m} size={32} status={m.live} />
         <div className="member-meta">
           <span className="member-name" style={{ color: m.globalRankMeta?.color || m.serverRank.color }}>
-            {m.nickname || m.displayName}{m.bot && <span className="bot-tag">✓ BOT</span>}
+            {m.nickname || m.displayName}{m.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}
           </span>
           {m.customStatus && <span className="member-status">{m.customStatus}</span>}
           <div className="member-badges">
@@ -57,9 +58,9 @@ export default function MemberList() {
             <div className="ctx-title">{menu.member.displayName}#{menu.member.tag}</div>
             {menu.member.id !== me.id && (
               <>
-                <button className="ctx-item" onClick={async () => { await startDM([menu.member.id]); setMenu(null); }}>💬 Message</button>
-                <button className="ctx-item" onClick={() => { bus.emit('call:start', { type: 'dm', targets: [menu.member], video: false, startDmWith: menu.member.id }); setMenu(null); }}>📞 Call</button>
-                <button className="ctx-item" onClick={() => { bus.emit('call:start', { type: 'dm', targets: [menu.member], video: true, startDmWith: menu.member.id }); setMenu(null); }}>📹 Video</button>
+                <button className="ctx-item" onClick={async () => { await startDM([menu.member.id]); setMenu(null); }}><Icon name="message" size={16} /> Message</button>
+                <button className="ctx-item" onClick={() => { bus.emit('call:start', { type: 'dm', targets: [menu.member], video: false, startDmWith: menu.member.id }); setMenu(null); }}><Icon name="phone" size={16} /> Call</button>
+                <button className="ctx-item" onClick={() => { bus.emit('call:start', { type: 'dm', targets: [menu.member], video: true, startDmWith: menu.member.id }); setMenu(null); }}><Icon name="video" size={16} /> Video</button>
               </>
             )}
             {canManage && menu.member.id !== me.id && (

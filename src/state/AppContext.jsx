@@ -3,6 +3,7 @@ import { api, setToken, getToken } from '../lib/api.js';
 import { connectSocket, disconnectSocket } from '../lib/socket.js';
 import { bus } from '../lib/bus.js';
 import { directory } from '../lib/directory.js';
+import { sfx } from '../lib/sounds.js';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -147,6 +148,7 @@ export function AppProvider({ children }) {
       const viewingDm = n.dmId && n.dmId === activeDmRef.current;
       const viewingCh = n.channelId && n.channelId === activeChannelRef.current;
       if (document.hasFocus() && (viewingDm || viewingCh)) return;
+      sfx.play(n.mention ? 'mention' : 'message');
       const who = n.from?.displayName || 'Someone';
       pushToast({
         title: n.mention
