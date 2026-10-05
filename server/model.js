@@ -23,12 +23,11 @@ export function serverRankMeta(rank) {
   return { key: r, ...SERVER_RANKS[r] };
 }
 
-// strip secrets from a user record
+// strip secrets from a user record (no email — that's only for the user themself)
 export function publicUser(u) {
   if (!u) return null;
   return {
     id: u.id,
-    email: u.email,
     displayName: u.displayName,
     tag: u.tag,
     avatarColor: u.avatarColor,
@@ -36,7 +35,21 @@ export function publicUser(u) {
     globalRank: u.globalRank || null,
     globalRankMeta: globalRankMeta(u.globalRank),
     status: u.status || 'offline',
+    bot: !!u.bot,
+    // profile card
+    bannerUrl: u.bannerUrl || null,
+    bannerColor: u.bannerColor || null,
+    aboutMe: u.aboutMe || '',
+    pronouns: u.pronouns || '',
+    customStatus: u.customStatus || '',
+    createdAt: u.createdAt || null,
   };
+}
+
+// the signed-in user's own record (adds private fields)
+export function selfUser(u) {
+  if (!u) return null;
+  return { ...publicUser(u), email: u.email };
 }
 
 // a user as they appear inside a specific server (adds server rank + nickname)
@@ -48,6 +61,7 @@ export function memberView(userId, serverId) {
     ...publicUser(u),
     serverRank: serverRankMeta(m?.serverRank),
     nickname: m?.nickname || null,
+    joinedAt: m?.joinedAt || null,
   };
 }
 
@@ -63,4 +77,13 @@ export function canModerate(userId, serverId) {
   if (isOwnerOf(userId, serverId)) return true;
   const m = db.find('serverMembers', (x) => x.userId === userId && x.serverId === serverId);
   return m && (m.serverRank === 'admin' || m.serverRank === 'mod');
+}
+
+// Server settings (name/icon/bots): global owner/staff, server owner, or server admin.
+export function canManageServer(userId, serverId) {
+  const u = db.byId('users', userId);
+  if (u && (u.globalRank === 'owner' || u.globalRank === 'staff')) return true;
+  if (isOwnerOf(userId, serverId)) return true;
+  const m = db.find('serverMembers', (x) => x.userId === userId && x.serverId === serverId);
+  return !!m && m.serverRank === 'admin';
 }

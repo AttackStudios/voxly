@@ -9,9 +9,10 @@ import db, { id as newId, init as dbInit, saveUpload, getUpload, flush as dbFlus
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, '..', 'dist');
-import { hashPassword, checkPassword, signToken, requireAuth, verifyToken } from './auth.js';
+import { hashPassword, checkPassword, signToken, requireAuth, verifyToken, botFromToken } from './auth.js';
+import { mountPlatform, sanitizeEmbeds } from './platform.js';
 import {
-  publicUser, memberView, serverRankMeta, canModerate, isOwnerOf,
+  publicUser, selfUser, memberView, serverRankMeta, canModerate, isOwnerOf,
   GLOBAL_RANKS, SERVER_RANKS,
 } from './model.js';
 
@@ -138,25 +139,25 @@ app.post('/api/register', (req, res) => {
     // OWNER_EMAIL lets the host claim the owner rank just by signing up
     globalRank: mail === (process.env.OWNER_EMAIL || '').trim().toLowerCase() ? 'owner' : null,
   });
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: selfUser(user) });
 });
 
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const user = db.find('users', (u) => u.email.toLowerCase() === String(email).toLowerCase());
-  if (!user || !checkPassword(password, user.passwordHash)) {
+  if (!user || user.bot || !user.passwordHash || !checkPassword(password, user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
   const token = signToken(user);
-  res.json({ token, user: publicUser(user) });
+  res.json({ token, user: selfUser(user) });
 });
 
 app.get('/api/me', requireAuth, (req, res) => {
   const u = db.byId('users', req.userId);
   if (!u) return res.status(404).json({ error: 'User not found' });
   res.json({
-    user: publicUser(u),
+    user: selfUser(u),
     servers: userServers(u.id),
     dms: userDMs(u.id),
   });
@@ -164,15 +165,22 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 // Update own profile (display name / avatar color / avatar image / status)
 app.patch('/api/me', requireAuth, (req, res) => {
-  const { displayName, avatarColor, status, avatarUrl } = req.body || {};
+  const { displayName, avatarColor, status, avatarUrl, bannerUrl, bannerColor, aboutMe, pronouns, customStatus } = req.body || {};
   const patch = {};
-  if (displayName) { patch.displayName = displayName; patch.tag = db.byId('users', req.userId).tag; }
+  if (displayName) { patch.displayName = String(displayName).trim().slice(0, 32); patch.tag = db.byId('users', req.userId).tag; }
+  const hex = (c) => (/^#[0-9a-f]{6}$/i.test(String(c)) ? c : null);
+  if (bannerUrl !== undefined) patch.bannerUrl = (bannerUrl && String(bannerUrl).startsWith('/uploads/')) ? bannerUrl : null;
+  if (bannerColor !== undefined) patch.bannerColor = hex(bannerColor);
+  if (aboutMe !== undefined) patch.aboutMe = String(aboutMe || '').slice(0, 190);
+  if (pronouns !== undefined) patch.pronouns = String(pronouns || '').slice(0, 40);
+  if (customStatus !== undefined) patch.customStatus = String(customStatus || '').slice(0, 128);
   if (avatarColor) patch.avatarColor = avatarColor;
   if (status) patch.status = status;
   // avatarUrl: set to an uploaded image, or null to remove (back to color+initials)
   if (avatarUrl !== undefined) patch.avatarUrl = (avatarUrl && String(avatarUrl).startsWith('/uploads/')) ? avatarUrl : null;
   const u = db.update('users', req.userId, patch);
-  res.json({ user: publicUser(u) });
+  io.emit('user:updated', { user: publicUser(u) });
+  res.json({ user: selfUser(u) });
 });
 
 // ---------- USERS (directory, for starting DMs) ----------
@@ -230,6 +238,8 @@ app.post('/api/servers/:id/channels', requireAuth, (req, res) => {
   const channel = db.insert('channels', {
     serverId: server.id, name: name || 'new-channel', type: type === 'voice' ? 'voice' : 'text', position, createdAt: Date.now(),
   });
+  // bots have no client to emit room:join, so join every member's sockets here
+  db.filter('serverMembers', (m) => m.serverId === server.id).forEach((m) => io.in(`user:${m.userId}`).socketsJoin(`channel:${channel.id}`));
   emitToServer(server.id, 'channel:created', { channel });
   res.json({ channel });
 });
@@ -262,7 +272,10 @@ app.post('/api/dms', requireAuth, (req, res) => {
   const convo = db.insert('dmConversations', {
     isGroup, name: isGroup ? (name || 'Group Chat') : null, ownerId: req.userId, participantIds, createdAt: Date.now(),
   });
-  participantIds.forEach((pid) => io.to(`user:${pid}`).emit('dm:created', { conversation: withParticipants(convo) }));
+  participantIds.forEach((pid) => {
+    io.in(`user:${pid}`).socketsJoin(`dm:${convo.id}`);
+    io.to(`user:${pid}`).emit('dm:created', { conversation: withParticipants(convo) });
+  });
   res.json({ conversation: withParticipants(convo) });
 });
 
@@ -306,7 +319,7 @@ app.get('/api/dms/:id/messages', requireAuth, (req, res) => {
 function hydrateMessages(list) {
   return list
     .sort((a, b) => a.createdAt - b.createdAt)
-    .map((m) => ({ ...m, author: publicUser(db.byId('users', m.authorId)) }));
+    .map((m) => fullMessage(m));
 }
 
 // expose rank metadata to the client
@@ -342,9 +355,16 @@ export const voiceMembersOf = (channelId) => [...(voiceMembers.get(channelId) ||
 
 // socket auth via handshake token
 io.use((socket, next) => {
+  const botToken = socket.handshake.auth?.botToken;
+  if (botToken) {
+    const bot = botFromToken(botToken);
+    if (!bot) return next(new Error('unauthorized'));
+    socket.userId = bot.id; socket.isBot = true;
+    return next();
+  }
   const token = socket.handshake.auth?.token;
   const payload = token && verifyToken(token);
-  if (!payload) return next(new Error('unauthorized'));
+  if (!payload || db.byId('users', payload.uid)?.bot) return next(new Error('unauthorized'));
   socket.userId = payload.uid;
   socket.isDesktop = !!socket.handshake.auth?.desktop;
   next();
@@ -372,6 +392,7 @@ function rcEnd(sharerSid, reason) {
 io.on('connection', (socket) => {
   const uid = socket.userId;
   socket.join(`user:${uid}`);
+  if (socket.isBot) socket.emit('ready', { user: publicUser(db.byId('users', uid)), servers: userServers(uid) });
   // join rooms for all my channels + DMs
   userServers(uid).forEach((s) =>
     db.filter('channels', (c) => c.serverId === s.id).forEach((c) => socket.join(`channel:${c.id}`)));
@@ -386,74 +407,24 @@ io.on('connection', (socket) => {
 
   // ---- send a message (text channel or DM) ----
   socket.on('message:send', (data, ack) => {
-    const { channelId, dmId, content } = data || {};
-    // keep only valid image attachments served from our own /uploads
-    const attachments = Array.isArray(data?.attachments)
-      ? data.attachments
-          .filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/uploads/'))
-          .slice(0, 10)
-          .map((a) => ({ url: a.url, name: String(a.name || 'image').slice(0, 120), type: a.type || '', size: a.size || 0 }))
-      : [];
-    if ((!content || !content.trim()) && attachments.length === 0) return;
-    let room, target, candidates;
-    if (channelId) {
-      const ch = db.byId('channels', channelId);
-      if (!ch || !db.find('serverMembers', (m) => m.serverId === ch.serverId && m.userId === uid)) return;
-      room = `channel:${channelId}`; target = { channelId, serverId: ch.serverId };
-      candidates = db.filter('serverMembers', (m) => m.serverId === ch.serverId).map((m) => db.byId('users', m.userId)).filter(Boolean);
-    } else if (dmId) {
-      const c = db.byId('dmConversations', dmId);
-      if (!c || !c.participantIds.includes(uid)) return;
-      room = `dm:${dmId}`; target = { dmId };
-      candidates = c.participantIds.map((p) => db.byId('users', p)).filter(Boolean);
-    } else return;
-
-    const mentions = parseMentions(content || '', candidates); // [userId]
-    const msg = db.insert('messages', {
-      ...target, authorId: uid, content: (content || '').slice(0, 4000), attachments, mentions, createdAt: Date.now(),
-    });
-    const full = { ...msg, author: publicUser(db.byId('users', uid)) };
-    io.to(room).emit('message:new', full);
-    const from = publicUser(db.byId('users', uid));
-    const preview = msg.content || (attachments.length ? `📷 ${attachments.length > 1 ? attachments.length + ' images' : 'Image'}` : '');
-
-    const sendNotify = (toId, extra) =>
-      io.to(`user:${toId}`).emit('notify', { from, content: preview, mention: mentions.includes(toId), ...extra });
-
-    if (dmId) {
-      // DMs always notify the other participants
-      candidates.filter((u) => u.id !== uid).forEach((u) => sendNotify(u.id, { kind: 'dm', dmId }));
-    } else if (channelId) {
-      // channels ping ONLY the people who were @mentioned (keeps it from being noisy)
-      const ch = db.byId('channels', channelId);
-      mentions.filter((p) => p !== uid).forEach((p) =>
-        sendNotify(p, { kind: 'channel', channelId, serverId: ch.serverId, channelName: ch.name }));
-    }
-    ack && ack({ ok: true, message: full });
+    const r = postMessage(uid, data || {});
+    if (r.error) return ack && ack({ ok: false, error: r.error });
+    ack && ack({ ok: true, message: r.message });
   });
 
-  const roomOf = (msg) => (msg.channelId ? `channel:${msg.channelId}` : `dm:${msg.dmId}`);
 
   // ---- edit a message (author only) ----
   socket.on('message:edit', ({ messageId, content }) => {
     const msg = db.byId('messages', messageId);
     if (!msg || msg.authorId !== uid) return;
     if (!content || !content.trim()) return; // to clear text, delete instead
-    db.update('messages', messageId, { content: content.slice(0, 4000), editedAt: Date.now() });
-    const full = { ...db.byId('messages', messageId), author: publicUser(db.byId('users', uid)) };
-    io.to(roomOf(msg)).emit('message:updated', full);
+    editMessage(msg, { content });
   });
 
   // ---- delete a message (author, or a server mod/owner for channel messages) ----
   socket.on('message:delete', ({ messageId }) => {
     const msg = db.byId('messages', messageId);
-    if (!msg) return;
-    const isAuthor = msg.authorId === uid;
-    const canMod = msg.channelId ? canModerate(uid, db.byId('channels', msg.channelId)?.serverId) : false;
-    if (!isAuthor && !canMod) return;
-    const room = roomOf(msg);
-    db.remove('messages', (m) => m.id === messageId);
-    io.to(room).emit('message:deleted', { id: messageId, channelId: msg.channelId || null, dmId: msg.dmId || null });
+    if (msg && canDeleteMessage(uid, msg)) deleteMessage(msg);
   });
 
   // typing indicator
@@ -568,6 +539,95 @@ io.on('connection', (socket) => {
       io.emit('presence:update', { userId: uid, status: 'offline' });
     }
   });
+});
+
+// ================= MESSAGES (shared by people, bots and the REST API) =================
+const roomOf = (msg) => (msg.channelId ? `channel:${msg.channelId}` : `dm:${msg.dmId}`);
+function fullMessage(msg) {
+  const ref = msg.replyToId && db.byId('messages', msg.replyToId);
+  return {
+    ...msg, author: publicUser(db.byId('users', msg.authorId)),
+    replyTo: ref ? { id: ref.id, content: (ref.content || '').slice(0, 120), author: publicUser(db.byId('users', ref.authorId)) } : null,
+  };
+}
+
+// Post a message as `uid`. Returns { message } or { error, status }.
+function postMessage(uid, data) {
+  const { channelId, dmId, content } = data;
+  // keep only valid image attachments served from our own /uploads
+  const attachments = Array.isArray(data.attachments)
+    ? data.attachments
+        .filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/uploads/'))
+        .slice(0, 10)
+        .map((a) => ({ url: a.url, name: String(a.name || 'image').slice(0, 120), type: a.type || '', size: a.size || 0 }))
+    : [];
+  const embeds = sanitizeEmbeds(data.embeds);
+  if ((!content || !String(content).trim()) && attachments.length === 0 && embeds.length === 0) return { error: 'Empty message', status: 400 };
+  let room, target, candidates;
+  if (channelId) {
+    const ch = db.byId('channels', channelId);
+    if (!ch || ch.type === 'voice') return { error: 'Channel not found', status: 404 };
+    if (!db.find('serverMembers', (m) => m.serverId === ch.serverId && m.userId === uid)) return { error: 'Not a member', status: 403 };
+    room = `channel:${channelId}`; target = { channelId, serverId: ch.serverId };
+    candidates = db.filter('serverMembers', (m) => m.serverId === ch.serverId).map((m) => db.byId('users', m.userId)).filter(Boolean);
+  } else if (dmId) {
+    const c = db.byId('dmConversations', dmId);
+    if (!c || !c.participantIds.includes(uid)) return { error: 'No access', status: 403 };
+    room = `dm:${dmId}`; target = { dmId };
+    candidates = c.participantIds.map((p) => db.byId('users', p)).filter(Boolean);
+  } else return { error: 'channelId or dmId required', status: 400 };
+
+  const text = String(content || '').slice(0, 4000);
+  const mentions = parseMentions(text, candidates); // [userId]
+  // <@userId> mentions (what bots write) count too
+  for (const m of text.matchAll(/<@([0-9a-f-]{36})>/g)) {
+    if (candidates.some((u) => u.id === m[1]) && !mentions.includes(m[1])) mentions.push(m[1]);
+  }
+  const reply = data.replyToId && db.byId('messages', data.replyToId);
+  const msg = db.insert('messages', {
+    ...target, authorId: uid, content: text, attachments, embeds, mentions,
+    replyToId: reply && roomOf(reply) === room ? reply.id : null, createdAt: Date.now(),
+  });
+  const full = fullMessage(msg);
+  io.to(room).emit('message:new', full);
+  const from = publicUser(db.byId('users', uid));
+  const preview = msg.content || embeds[0]?.title || embeds[0]?.description ||
+    (attachments.length ? `📷 ${attachments.length > 1 ? attachments.length + ' images' : 'Image'}` : '');
+  const sendNotify = (toId, extra) =>
+    io.to(`user:${toId}`).emit('notify', { from, content: preview, mention: mentions.includes(toId), ...extra });
+  if (dmId) {
+    // DMs always notify the other participants
+    candidates.filter((u) => u.id !== uid).forEach((u) => sendNotify(u.id, { kind: 'dm', dmId }));
+  } else {
+    // channels ping ONLY the people who were @mentioned (keeps it from being noisy)
+    const ch = db.byId('channels', channelId);
+    mentions.filter((p) => p !== uid).forEach((p) =>
+      sendNotify(p, { kind: 'channel', channelId, serverId: ch.serverId, channelName: ch.name }));
+  }
+  return { message: full };
+}
+
+function editMessage(msg, { content, embeds }) {
+  const patch = { editedAt: Date.now() };
+  if (content !== undefined) patch.content = String(content || '').slice(0, 4000);
+  if (embeds !== undefined) patch.embeds = sanitizeEmbeds(embeds);
+  db.update('messages', msg.id, patch);
+  const full = fullMessage(db.byId('messages', msg.id));
+  io.to(roomOf(msg)).emit('message:updated', full);
+  return full;
+}
+function canDeleteMessage(uid, msg) {
+  if (msg.authorId === uid) return true;
+  return msg.channelId ? !!canModerate(uid, db.byId('channels', msg.channelId)?.serverId) : false;
+}
+function deleteMessage(msg) {
+  db.remove('messages', (m) => m.id === msg.id);
+  io.to(roomOf(msg)).emit('message:deleted', { id: msg.id, channelId: msg.channelId || null, dmId: msg.dmId || null });
+}
+
+mountPlatform(app, {
+  io, postMessage, editMessage, deleteMessage, canDeleteMessage, fullMessage,
+  emitToServer, userServers, withParticipants, randColor,
 });
 
 // Boot: load the datastore (Postgres or file), seed a first-run owner if empty,

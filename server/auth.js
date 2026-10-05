@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { DATA_DIR } from './db.js';
+import db, { DATA_DIR } from './db.js';
 
 const SECRET_FILE = path.join(DATA_DIR, '.jwtsecret');
 
@@ -35,12 +35,39 @@ export function verifyToken(token) {
   }
 }
 
-// Express middleware: requires a valid Bearer token, attaches req.userId.
+// ---- bot tokens: "<botUserId>.<secret>"; only a SHA-256 of the secret is stored ----
+export const hashSecret = (s) => crypto.createHash('sha256').update(s).digest('hex');
+export function newBotToken(botId) {
+  const secret = crypto.randomBytes(32).toString('base64url');
+  return { token: `${botId}.${secret}`, hash: hashSecret(secret) };
+}
+export function botFromToken(token) {
+  const dot = String(token || '').indexOf('.');
+  if (dot < 1) return null;
+  const u = db.byId('users', token.slice(0, dot));
+  if (!u || !u.bot || !u.botTokenHash) return null;
+  const a = Buffer.from(hashSecret(token.slice(dot + 1))), b = Buffer.from(u.botTokenHash);
+  return a.length === b.length && crypto.timingSafeEqual(a, b) ? u : null;
+}
+
+// Express middleware: "Bearer <user JWT>" or "Bot <bot token>"; attaches req.userId.
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
+  if (header.startsWith('Bot ')) {
+    const bot = botFromToken(header.slice(4).trim());
+    if (!bot) return res.status(401).json({ error: 'Invalid bot token' });
+    req.userId = bot.id; req.isBot = true;
+    return next();
+  }
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   const payload = token && verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Not authenticated' });
+  if (db.byId('users', payload.uid)?.bot) return res.status(401).json({ error: 'Not authenticated' });
   req.userId = payload.uid;
+  next();
+}
+// human accounts only (bot management, uploads of profile art, etc.)
+export function requireHuman(req, res, next) {
+  if (req.isBot) return res.status(403).json({ error: 'Bots cannot do that' });
   next();
 }
