@@ -36,6 +36,12 @@ function Toast({ t, onClose, onOpen, onReply, onCall }) {
         </div>
         <button className="toast-x" onClick={(e) => { e.stopPropagation(); onClose(); }}>✕</button>
       </div>
+      {t.link && (
+        <div className="toast-actions">
+          <a className="toast-link" href={t.link} target="_blank" rel="noreferrer" onClick={onClose}>Get the desktop app</a>
+        </div>
+      )}
+      {(t.dmId || t.channelId) && (
       <div className="toast-actions">
         <input className="toast-reply" placeholder="Quick reply…" value={reply}
           onChange={(e) => setReply(e.target.value)}
@@ -43,6 +49,7 @@ function Toast({ t, onClose, onOpen, onReply, onCall }) {
         <button className="toast-btn" title="Send" onClick={() => reply.trim() && onReply(reply.trim())}>➤</button>
         {t.dmId && <button className="toast-btn call" title="Call" onClick={onCall}>📞</button>}
       </div>
+      )}
     </div>
   );
 }

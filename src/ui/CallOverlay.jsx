@@ -3,6 +3,8 @@ import { useApp } from '../state/AppContext.jsx';
 import { CallManager } from '../lib/webrtc.js';
 import { VOICE_EFFECTS } from '../lib/voicefx.js';
 import { bus } from '../lib/bus.js';
+import { api } from '../lib/api.js';
+import { useRemoteSharer, useRemoteHelper, ControlView } from './RemoteControl.jsx';
 
 // Returns true while the given stream's mic audio is above a speaking threshold.
 // Uses Web Audio RMS with a short hold so the ring doesn't flicker between words.
@@ -51,12 +53,23 @@ export default function CallOverlay() {
   const [fxUnlocked, setFxUnlocked] = useState(false); // hidden voice changer
   const [fxEffect, setFxEffect] = useState('none');
   const [minimized, setMinimized] = useState(false);
+  const [people, setPeople] = useState({}); // userId -> public user (for tile names)
   const micToggles = useRef([]);
   const mgr = useRef(null);
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
 
   const s = () => socket.current;
+  const nameOf = (uid) => people[uid]?.displayName || 'Your friend';
+
+  // remote control: me helping others (helper) / others helping me (sharer)
+  const helper = useRemoteHelper({ sock: socket.current, pushToast, nameOf });
+  const sharer = useRemoteSharer({
+    sock: socket.current, sharing, screenStream, pushToast,
+    startSharing: () => toggleScreen(true),
+  });
+  const rcRef = useRef({ helper, sharer });
+  rcRef.current = { helper, sharer };
 
   const ensureManager = useCallback(() => {
     if (!mgr.current) {
@@ -70,6 +83,9 @@ export default function CallOverlay() {
   }, [me.id]);
 
   const endCall = useCallback((notifyTargets = true) => {
+    const { helper: h, sharer: sh } = rcRef.current;
+    Object.keys(h.state).forEach((pid) => h.stop(pid));
+    if (sh.controller) sh.stopControl();
     if (call?.mode === 'voice') s()?.emit('voice:leave', { channelId: call.channelId });
     if (call?.mode === 'dm' && notifyTargets) (call.targets || []).forEach((t) => s()?.emit('call:end', { to: t.id, dmId: call.dmId }));
     mgr.current?.hangup();
@@ -153,6 +169,12 @@ export default function CallOverlay() {
   // green "speaking" ring when your mic picks up sound (and you're not muted)
   const localSpeaking = useSpeaking(micOn ? localAudioStream : null);
 
+  // look up names for everyone on the call
+  useEffect(() => {
+    if (!call) return;
+    api.users().then((d) => setPeople(Object.fromEntries(d.users.map((u) => [u.id, u])))).catch(() => {});
+  }, [call?.status, Object.keys(remote).join()]); // eslint-disable-line
+
   // populate the camera list once we're in a call so the picker is ready
   useEffect(() => { if (call && mgr.current) refreshCameras(); /* eslint-disable-next-line */ }, [call?.status]);
 
@@ -215,11 +237,14 @@ export default function CallOverlay() {
   }
   async function toggleScreen(force) {
     const want = force ?? !sharing;
-    if (want) { try { const ss = await mgr.current.shareScreen(); setScreenStream(ss); setSharing(true); } catch {} }
-    else { mgr.current?.stopScreen(); setScreenStream(null); setSharing(false); }
+    if (want) {
+      try { const ss = await mgr.current.shareScreen(); setScreenStream(ss); setSharing(true); return ss; }
+      catch { return null; }
+    }
+    mgr.current?.stopScreen(); setScreenStream(null); setSharing(false); return null;
   }
 
-  if (!call) return null;
+  if (!call) return sharer.ui || null;
 
   // incoming ring
   if (call?.status === 'ringing' && call.incoming) {
@@ -237,8 +262,21 @@ export default function CallOverlay() {
   }
 
   const remoteIds = Object.keys(remote);
+  const controllingId = Object.keys(helper.state).find((pid) => helper.state[pid] === 'controlling' && remote[pid]);
   return (
+    <>
+    {sharer.ui}
+    {controllingId && (
+      <ControlView sock={socket.current} peerId={controllingId} name={nameOf(controllingId)} stream={remote[controllingId]}
+        platform={helper.peerPlatform[controllingId]} onStop={() => helper.stop(controllingId)} />
+    )}
     <div className={`call-overlay ${minimized ? 'minimized' : ''}`}>
+      {sharer.controller && (
+        <div className="rc-controlled-bar">
+          <span className="rc-live-dot" /> <b>{sharer.controller.displayName}</b>&nbsp;is controlling your screen
+          <button className="rc-btn stop sm" onClick={sharer.stopControl}>Stop</button>
+        </div>
+      )}
       <div className="call-titlebar">
         <span className="call-titlebar-text">
           {call?.mode === 'voice' ? '🔊 Voice channel' : '📞 Call'}{call?.status === 'ringing' ? ' · ringing…' : ''}
@@ -259,7 +297,8 @@ export default function CallOverlay() {
           <div className="tile-name">You</div>
         </div>
         {remoteIds.map((uid) => (
-          <RemoteTile key={uid} uid={uid} stream={remote[uid]} />
+          <RemoteTile key={uid} uid={uid} stream={remote[uid]} name={nameOf(uid)}
+            rc={helper.state[uid]} onRequest={() => helper.request(uid)} onCancel={() => helper.cancel(uid)} />
         ))}
         {remoteIds.length === 0 && (
           <div className="tile placeholder">{call?.status === 'ringing' ? 'Ringing…' : 'Waiting for others…'}</div>
@@ -293,10 +332,11 @@ export default function CallOverlay() {
         <button className="call-btn hang" onClick={() => endCall(true)} title="Leave call">📴</button>
       </div>
     </div>
+    </>
   );
 }
 
-function RemoteTile({ uid, stream }) {
+function RemoteTile({ stream, name, rc, onRequest, onCancel }) {
   const ref = useRef(null);
   const [hasVideo, setHasVideo] = useState(false);
   useEffect(() => {
@@ -321,7 +361,14 @@ function RemoteTile({ uid, stream }) {
       <div className="media-badges">
         <span className={`media-badge ${hasVideo ? 'cam' : 'voice'}`}>{hasVideo ? '📺 Video / Screen' : '🎙️ Voice'}</span>
       </div>
-      <div className="tile-name">User</div>
+      {hasVideo && (
+        rc === 'requested'
+          ? <button className="rc-tile-btn waiting" onClick={onCancel} title="Cancel request">⏳ Waiting for {name}… <span>Cancel</span></button>
+          : rc === 'controlling'
+            ? <span className="rc-tile-btn live">🖱️ You’re in control</span>
+            : <button className="rc-tile-btn" onClick={onRequest} title={`Ask ${name} if you can control their screen`}>🖱️ Request control</button>
+      )}
+      <div className="tile-name">{name}</div>
     </div>
   );
 }

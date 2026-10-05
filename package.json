@@ -43,5 +43,8 @@
     "electron": "^33.2.1",
     "eslint": "^9.39.1",
     "vite": "^7.2.4"
+  },
+  "optionalDependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6"
   }
 }

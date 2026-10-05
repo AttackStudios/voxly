@@ -11,7 +11,8 @@ export function connectSocket() {
   // so messages arrived (and rendered) twice. One socket only.
   if (socket) return socket;
   socket = io(BASE || '/', {
-    auth: { token: getToken() },
+    // `desktop` tells the server this client can receive remote control (Electron app)
+    auth: { token: getToken(), desktop: !!window.desktop?.remote },
     transports: ['websocket', 'polling'],
   });
   return socket;

@@ -346,10 +346,28 @@ io.use((socket, next) => {
   const payload = token && verifyToken(token);
   if (!payload) return next(new Error('unauthorized'));
   socket.userId = payload.uid;
+  socket.isDesktop = !!socket.handshake.auth?.desktop;
   next();
 });
 
 const onlineCounts = new Map(); // userId -> open socket count
+
+// ============ REMOTE CONTROL (consent-gated) ============
+// A helper (controller) asks a sharer for control; only the sharer's desktop app
+// can be controlled (browsers can't inject OS input). Input is relayed ONLY while
+// the sharer's explicit grant exists, and only to the socket that granted it.
+const rcGrants = new Map();   // sharer socket id -> { sharerId, controllerId }
+const rcPending = new Map();  // `${sharerId}:${controllerId}` -> request time
+const desktopSockets = (userId) =>
+  [...(io.sockets.adapter.rooms.get(`user:${userId}`) || [])]
+    .map((sid) => io.sockets.sockets.get(sid)).filter((sk) => sk?.isDesktop);
+function rcEnd(sharerSid, reason) {
+  const g = rcGrants.get(sharerSid);
+  if (!g) return;
+  rcGrants.delete(sharerSid);
+  io.to(sharerSid).emit('rc:ended', { peerId: g.controllerId, reason });
+  io.to(`user:${g.controllerId}`).emit('rc:ended', { peerId: g.sharerId, reason });
+}
 
 io.on('connection', (socket) => {
   const uid = socket.userId;
@@ -460,6 +478,50 @@ io.on('connection', (socket) => {
   socket.on('rtc:answer', relay('rtc:answer'));
   socket.on('rtc:ice', relay('rtc:ice'));
 
+  // ---- remote control ----
+  socket.on('rc:request', ({ to }) => {
+    if (!to || to === uid) return;
+    const me = publicUser(db.byId('users', uid));
+    const targets = desktopSockets(to);
+    if (!targets.length) {
+      socket.emit('rc:unavailable', { peerId: to });
+      // let them know someone wants to help, and how to allow it
+      io.to(`user:${to}`).emit('rc:needs-desktop', { from: me });
+      return;
+    }
+    const key = `${to}:${uid}`;
+    if (Date.now() - (rcPending.get(key) || 0) < 4000) return; // no request spam
+    rcPending.set(key, Date.now());
+    targets.forEach((t) => t.emit('rc:request', { from: me }));
+    socket.emit('rc:requested', { peerId: to });
+  });
+  socket.on('rc:cancel', ({ to }) => {
+    rcPending.delete(`${to}:${uid}`);
+    desktopSockets(to).forEach((t) => t.emit('rc:cancelled', { peerId: uid }));
+  });
+  socket.on('rc:respond', ({ to, allow, platform }) => {
+    const asked = rcPending.get(`${uid}:${to}`);
+    if (!socket.isDesktop || !asked || Date.now() - asked > 60e3) return; // must answer within a minute
+    rcPending.delete(`${uid}:${to}`);
+    desktopSockets(uid).forEach((t) => t.id !== socket.id && t.emit('rc:cancelled', { peerId: to }));
+    if (!allow) return io.to(`user:${to}`).emit('rc:denied', { peerId: uid });
+    // one helper at a time per sharer
+    if (rcGrants.has(socket.id)) rcEnd(socket.id, 'replaced');
+    rcGrants.set(socket.id, { sharerId: uid, controllerId: to });
+    io.to(`user:${to}`).emit('rc:granted', { peerId: uid, platform: platform === 'mac' ? 'mac' : 'other' });
+    socket.emit('rc:started', { peerId: to, peer: publicUser(db.byId('users', to)) });
+  });
+  socket.on('rc:input', ({ to, ev }) => {
+    for (const [sid, g] of rcGrants) {
+      if (g.sharerId === to && g.controllerId === uid) { io.to(sid).emit('rc:input', ev); return; }
+    }
+  });
+  socket.on('rc:stop', ({ to }) => {
+    for (const [sid, g] of rcGrants) {
+      if (sid === socket.id || (g.sharerId === to && g.controllerId === uid)) rcEnd(sid, 'stopped');
+    }
+  });
+
   // Call lifecycle (DM / group voice or video)
   socket.on('call:invite', ({ to, dmId, video }) => {
     io.to(`user:${to}`).emit('call:incoming', { from: publicUser(db.byId('users', uid)), dmId, video, fromId: uid });
@@ -488,6 +550,7 @@ io.on('connection', (socket) => {
   // 'disconnecting' fires while socket.rooms is still populated — use it to drop
   // the user from any voice channels this socket was in (prevents ghost members).
   socket.on('disconnecting', () => {
+    for (const [sid, g] of rcGrants) if (sid === socket.id || g.controllerId === uid) rcEnd(sid, 'disconnected');
     for (const room of socket.rooms) {
       if (typeof room === 'string' && room.startsWith('voice:')) {
         const channelId = room.slice('voice:'.length);

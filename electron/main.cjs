@@ -1,9 +1,21 @@
-const { app, BrowserWindow, ipcMain, screen: eScreen, desktopCapturer, session, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, screen: eScreen, desktopCapturer, session, systemPreferences, shell } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 
+const remote = require('./remote.cjs');
+
 app.setName('Voxly');
 const DEV_URL = process.env.DC_URL || 'http://localhost:5173';
+// The packaged app is a window onto the hosted site, so everyone shares one set
+// of accounts. VOXLY_LOCAL=1 instead runs a private bundled server (old mode).
+const HOSTED_URL = process.env.VOXLY_URL || 'https://voxly.onrender.com';
+const LOCAL_MODE = process.env.VOXLY_LOCAL === '1';
+const APP_URL = !app.isPackaged ? DEV_URL
+  : LOCAL_MODE ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}` : HOSTED_URL;
+const sameApp = (url) => {
+  try { return !app.isPackaged || LOCAL_MODE || new URL(url).origin === new URL(HOSTED_URL).origin; }
+  catch { return false; }
+};
 let mainWindow = null;
 let toastWindow = null;
 let serverProc = null;
@@ -12,7 +24,7 @@ let serverProc = null;
 // backend (writing data to the OS user-data folder) and the bundled web build
 // talks to it on localhost:3001.
 function startBundledServer() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || !LOCAL_MODE) return;
   const dataDir = path.join(app.getPath('userData'), 'data');
   serverProc = fork(path.join(__dirname, '..', 'server', 'index.js'), [], {
     env: {
@@ -33,17 +45,22 @@ function createMainWindow() {
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
   });
-  mainWindow.loadURL(app.isPackaged ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}` : DEV_URL);
+  mainWindow.loadURL(APP_URL);
   mainWindow.setTitle('Voxly');
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => { mainWindow = null; remote.stop('closed'); });
+  // links to other sites (YouTube etc.) open in the normal browser, never in-app
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  mainWindow.webContents.on('will-navigate', (e, url) => { if (!sameApp(url)) { e.preventDefault(); shell.openExternal(url); } });
 
-  // grant camera/mic/screen requests coming from our own trusted renderer
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true));
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  // grant camera/mic/screen requests only to Voxly itself
+  session.defaultSession.setPermissionRequestHandler((wc, _permission, callback) => callback(sameApp(wc.getURL())));
+  session.defaultSession.setPermissionCheckHandler((wc) => !wc || sameApp(wc.getURL()));
 
   // auto-grant screen capture (for screen share / remote help)
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
+      // remember which monitor is shared so remote control maps onto it
+      remote.setShareDisplay(sources[0]?.display_id);
       callback({ video: sources[0], audio: 'loopback' });
     });
   }, { useSystemPicker: true });
@@ -108,3 +125,10 @@ ipcMain.on('toast:action', (_e, payload) => {
   if (mainWindow) mainWindow.webContents.send('toast:action', payload);
   if (payload.action === 'open' && mainWindow) { mainWindow.show(); mainWindow.focus(); }
 });
+
+// ---- remote control (only after the user clicked Allow in the app) ----
+remote.onStop((reason) => { if (mainWindow) mainWindow.webContents.send('remote:stopped', reason); });
+const fromApp = (e) => mainWindow && e.sender === mainWindow.webContents && sameApp(e.sender.getURL());
+ipcMain.handle('remote:start', (e, opts) => (fromApp(e) ? remote.start(opts) : { ok: false, reason: 'denied' }));
+ipcMain.on('remote:input', (e, ev) => { if (fromApp(e)) remote.input(ev); });
+ipcMain.on('remote:stop', (e) => { if (fromApp(e)) remote.stop('stopped'); });
