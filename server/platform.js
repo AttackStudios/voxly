@@ -128,6 +128,34 @@ export function mountPlatform(app, ctx) {
     res.json({ member: memberView(bot.id, s.id) });
   });
 
+  // ================= ADMIN (global owner only) =================
+  const requireOwner = (req, res, next) =>
+    (db.byId('users', req.userId)?.globalRank === 'owner' ? next() : res.status(403).json({ error: 'Owner only' }));
+  app.get('/api/admin/users', requireAuth, requireHuman, requireOwner, (req, res) => {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const list = db.all('users')
+      .filter((u) => !q || u.displayName.toLowerCase().includes(q) || `${u.displayName}#${u.tag}`.toLowerCase().includes(q))
+      .slice(0, 50)
+      .map((u) => ({ ...publicUser(u), email: u.bot ? null : u.email }));
+    res.json({ users: list });
+  });
+  app.patch('/api/admin/users/:id', requireAuth, requireHuman, requireOwner, (req, res) => {
+    const u = db.byId('users', req.params.id);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    const { tag, official } = req.body || {};
+    const patch = {};
+    if (tag !== undefined) {
+      if (!/^\d{4}$/.test(String(tag))) return res.status(400).json({ error: 'Tag must be 4 digits' });
+      const clash = db.find('users', (x) => x.id !== u.id && x.tag === String(tag) && x.displayName.toLowerCase() === u.displayName.toLowerCase());
+      if (clash) return res.status(409).json({ error: `Someone else is already ${u.displayName}#${tag}` });
+      patch.tag = String(tag);
+    }
+    if (official !== undefined) patch.official = !!official;
+    const updated = db.update('users', u.id, patch);
+    io.emit('user:updated', { user: publicUser(updated) });
+    res.json({ user: { ...publicUser(updated), email: updated.bot ? null : updated.email } });
+  });
+
   // ================= PROFILES =================
   app.get('/api/users/:id/profile', requireAuth, (req, res) => {
     const u = db.byId('users', req.params.id);

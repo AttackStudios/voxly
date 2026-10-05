@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
-import { Avatar, RankBadge } from './common.jsx';
+import { Avatar, RankBadge, UserTags } from './common.jsx';
 import { bus } from '../lib/bus.js';
 import { openProfile } from './ProfileCard.jsx';
 import Icon from './Icon.jsx';
@@ -32,7 +32,7 @@ export default function MemberList() {
         <Avatar user={m} size={32} status={m.live} />
         <div className="member-meta">
           <span className="member-name" style={{ color: m.globalRankMeta?.color || m.serverRank.color }}>
-            {m.nickname || m.displayName}{m.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}
+            {m.nickname || m.displayName}<UserTags user={m} />
           </span>
           {m.customStatus && <span className="member-status">{m.customStatus}</span>}
           <div className="member-badges">

@@ -1,5 +1,5 @@
 import { useApp } from '../state/AppContext.jsx';
-import { Avatar, RankBadge } from './common.jsx';
+import { Avatar, RankBadge, UserTags } from './common.jsx';
 import { bus } from '../lib/bus.js';
 import { openProfile } from './ProfileCard.jsx';
 import Icon from './Icon.jsx';
@@ -13,7 +13,8 @@ export default function UserPanel() {
       <div className="user-panel-meta">
         <div className="user-panel-name">
           {me.displayName}
-          {me.globalRankMeta && <RankBadge rank={me.globalRankMeta} />}
+          <UserTags user={me} />
+          {me.globalRankMeta && !me.official && <RankBadge rank={me.globalRankMeta} />}
         </div>
         <div className="user-panel-tag">{me.customStatus || `#${me.tag}`}</div>
       </div>

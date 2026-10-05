@@ -36,6 +36,7 @@ export function publicUser(u) {
     globalRankMeta: globalRankMeta(u.globalRank),
     status: u.status || 'offline',
     bot: !!u.bot,
+    official: !!u.official, // Voxly's own staff/announcement accounts
     // profile card
     bannerUrl: u.bannerUrl || null,
     bannerColor: u.bannerColor || null,

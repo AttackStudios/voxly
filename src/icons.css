@@ -46,3 +46,13 @@
 .sound-chip { display: inline-flex; align-items: center; gap: 6px; background: #2b2d31; border: 1px solid #3f4147; color: var(--text); border-radius: 16px; padding: 6px 12px; font-size: 13px; }
 .sound-chip:hover:not(:disabled) { background: var(--blurple); border-color: var(--blurple); color: #fff; }
 .sound-chip:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- Official tag (logo gradient) + admin ---------- */
+.official-tag { display: inline-flex; align-items: center; gap: 2px; background: linear-gradient(90deg, #EE7468, #F3B47F); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle; line-height: 15px;
+  letter-spacing: .02em; text-shadow: 0 1px 1px rgba(0,0,0,.15); }
+.admin-row { display: flex; align-items: center; gap: 12px; background: #2b2d31; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.admin-meta { flex: 1; min-width: 0; }
+.admin-name { font-weight: 600; color: var(--text-bright); display: flex; align-items: center; flex-wrap: wrap; }
+.st-content input.admin-tag { width: 64px; text-align: center; font-family: Consolas, monospace; padding: 6px; }
+.st-toggle.small { font-size: 13px; gap: 8px; }

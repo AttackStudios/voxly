@@ -13,6 +13,16 @@ export function Avatar({ user, size = 40, status }) {
   );
 }
 
+export function UserTags({ user }) {
+  if (!user) return null;
+  return (
+    <>
+      {user.official && <span className="official-tag" title="Official Voxly account"><Icon name="check" size={10} stroke={3} /> OFFICIAL</span>}
+      {user.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}
+    </>
+  );
+}
+
 export function RankBadge({ rank }) {
   if (!rank) return null;
   return (

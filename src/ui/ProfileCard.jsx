@@ -5,6 +5,7 @@ import { bus } from '../lib/bus.js';
 import { directory } from '../lib/directory.js';
 import { renderMarkup } from '../lib/markup.jsx';
 import Icon from './Icon.jsx';
+import { UserTags } from './common.jsx';
 
 // Discord-style profile popout. Open from anywhere with
 //   bus.emit('profile:open', { userId, x, y, serverId })
@@ -92,7 +93,7 @@ export function ProfileCard({ req, onClose, preview }) {
       </div>
       <div className="pc-body">
         <div className="pc-names">
-          <div className="pc-display">{member?.nickname || u.displayName}{u.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}</div>
+          <div className="pc-display">{member?.nickname || u.displayName}<UserTags user={u} /></div>
           <div className="pc-user">
             {u.displayName.toLowerCase().replace(/\s+/g, '')}{!u.bot && <span className="pc-tag">#{u.tag}</span>}
             {u.pronouns && <><span className="pc-dot">•</span>{u.pronouns}</>}

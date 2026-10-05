@@ -10,6 +10,7 @@ import Embed from './Embed.jsx';
 import { openProfile } from './ProfileCard.jsx';
 import YouTubeEmbed from './YouTubeEmbed.jsx';
 import Icon from './Icon.jsx';
+import { UserTags } from './common.jsx';
 
 export default function ChatView({ showMembers, toggleMembers }) {
   const app = useApp();
@@ -156,7 +157,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
                 {!grouped && (
                   <div className="msg-head">
                     <span className="msg-author" style={{ color: m.author?.globalRankMeta?.color }} onClick={(e) => openProfile(e, m.authorId, serverId)}>{m.author?.displayName}</span>
-                    {m.author?.bot && <span className="bot-tag"><Icon name="check" size={10} stroke={3} /> BOT</span>}
+                    <UserTags user={m.author} />
                     {m.author?.globalRankMeta && <span className="rank-badge" style={{ background: m.author.globalRankMeta.color }}>{m.author.globalRankMeta.label}</span>}
                     <span className="msg-time">{new Date(m.createdAt).toLocaleString()}</span>
                   </div>

@@ -69,6 +69,8 @@ export const api = {
   removeMember: (serverId, userId) => req('DELETE', `/api/servers/${serverId}/members/${userId}`),
   addBot: (serverId, botId) => req('POST', `/api/servers/${serverId}/bots`, { botId }),
 
+  adminUsers: (q) => req('GET', `/api/admin/users?q=${encodeURIComponent(q || '')}`),
+  adminUpdateUser: (id, patch) => req('PATCH', `/api/admin/users/${id}`, patch),
   bots: () => req('GET', '/api/bots'),
   createBot: (body) => req('POST', '/api/bots', body),
   updateBot: (id, patch) => req('PATCH', `/api/bots/${id}`, patch),

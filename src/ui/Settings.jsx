@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
 import { api, uploadImage, assetUrl } from '../lib/api.js';
 import { bus } from '../lib/bus.js';
-import { Avatar } from './common.jsx';
+import { Avatar, UserTags } from './common.jsx';
 import { ProfileCard } from './ProfileCard.jsx';
 import { sfx } from '../lib/sounds.js';
 import Icon from './Icon.jsx';
@@ -70,7 +70,7 @@ function ImagePick({ onPicked, children, className }) {
 
 // ======================= USER SETTINGS =======================
 export function UserSettings({ initialTab = 'account', onClose }) {
-  const { logout } = useApp();
+  const { logout, me } = useApp();
   const [tab, setTab] = useState(initialTab);
   const sections = [
     { heading: 'User Settings' },
@@ -80,6 +80,7 @@ export function UserSettings({ initialTab = 'account', onClose }) {
     { id: 'notifications', label: 'Notifications' },
     { sep: true }, { heading: 'Developers' },
     { id: 'developer', label: 'Developer Portal' },
+    ...(me.globalRank === 'owner' ? [{ id: 'admin', label: 'Admin' }] : []),
     { sep: true },
     { id: 'logout', label: 'Log Out', danger: true, onClick: logout },
   ];
@@ -89,6 +90,7 @@ export function UserSettings({ initialTab = 'account', onClose }) {
       {tab === 'profile' && <ProfilePage />}
       {tab === 'notifications' && <NotificationsPage />}
       {tab === 'developer' && <DeveloperPage />}
+      {tab === 'admin' && <AdminPage />}
     </SettingsShell>
   );
 }
@@ -327,6 +329,50 @@ function BotCard({ bot, reload, reveal, onToken }) {
           await api.deleteBot(bot.id); reload();
         }}>Delete Bot</button>
       </div>
+    </div>
+  );
+}
+
+// ---------------- Admin (global owner) ----------------
+function AdminPage() {
+  const { pushToast } = useApp();
+  const [q, setQ] = useState('');
+  const [users, setUsers] = useState([]);
+  const search = (text) => api.adminUsers(text).then((d) => setUsers(d.users)).catch((e) => pushToast({ title: 'Error', body: e.message }));
+  useEffect(() => { search(''); }, []); // eslint-disable-line
+  const save = async (u, patch) => {
+    try { const { user } = await api.adminUpdateUser(u.id, patch); setUsers((l) => l.map((x) => (x.id === user.id ? user : x))); }
+    catch (e) { pushToast({ title: 'Couldn’t update', body: e.message }); }
+  };
+  return (
+    <>
+      <h1>Admin</h1>
+      <p className="st-hint">Owner-only tools. Give accounts the <span className="official-tag"><Icon name="check" size={10} stroke={3} /> OFFICIAL</span> tag or a custom #tag.</p>
+      <form className="dev-new" onSubmit={(e) => { e.preventDefault(); search(q); }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or name#tag" />
+        <button className="btn-primary">Search</button>
+      </form>
+      {users.map((u) => <AdminRow key={u.id} u={u} save={save} />)}
+    </>
+  );
+}
+function AdminRow({ u, save }) {
+  const [tag, setTag] = useState(u.tag);
+  useEffect(() => setTag(u.tag), [u.tag]);
+  return (
+    <div className="admin-row">
+      <Avatar user={u} size={36} />
+      <div className="admin-meta">
+        <div className="admin-name">{u.displayName}<span className="tag">#{u.tag}</span><UserTags user={u} /></div>
+        <div className="muted small">{u.email || 'bot account'}</div>
+      </div>
+      <input className="admin-tag" value={tag} maxLength={4} onChange={(e) => setTag(e.target.value.replace(/\D/g, ''))} />
+      {tag !== u.tag && <button className="btn-success sm" onClick={() => save(u, { tag })}>Set tag</button>}
+      <label className="st-toggle small" title="Official tag">
+        <span>Official</span>
+        <input type="checkbox" checked={u.official} onChange={(e) => save(u, { official: e.target.checked })} />
+        <i />
+      </label>
     </div>
   );
 }
