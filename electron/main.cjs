@@ -8,7 +8,7 @@ app.setName('Voxly');
 const DEV_URL = process.env.DC_URL || 'http://localhost:5173';
 // The packaged app is a window onto the hosted site, so everyone shares one set
 // of accounts. VOXLY_LOCAL=1 instead runs a private bundled server (old mode).
-const HOSTED_URL = process.env.VOXLY_URL || 'https://voxly.onrender.com';
+const HOSTED_URL = process.env.VOXLY_URL || 'https://voxly-30dh.onrender.com';
 const LOCAL_MODE = process.env.VOXLY_LOCAL === '1';
 const APP_URL = !app.isPackaged ? DEV_URL
   : LOCAL_MODE ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}` : HOSTED_URL;

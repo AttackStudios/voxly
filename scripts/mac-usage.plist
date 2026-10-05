@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key><string>Voxly uses your microphone for voice calls.</string>
+  <key>NSCameraUsageDescription</key><string>Voxly uses your camera for video calls.</string>
+  <key>NSScreenCaptureUsageDescription</key><string>Voxly shares your screen when you choose to.</string>
+</dict>
+</plist>
