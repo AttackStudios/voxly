@@ -28,6 +28,4 @@
   <!-- eyes -->
   <ellipse cx="398" cy="500" rx="62" ry="68" fill="#EF8B6E"/>
   <ellipse cx="626" cy="500" rx="62" ry="68" fill="#F1A074"/>
-  <!-- smile -->
-  <path d="M 392 598 Q 512 668 632 598" fill="none" stroke="#F09670" stroke-width="40" stroke-linecap="round"/>
 </svg>
