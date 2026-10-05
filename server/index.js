@@ -95,10 +95,11 @@ function userDMs(userId) {
 }
 
 // ---------- AUTH ----------
-// Sign-up is off unless INVITE_CODE is set; then anyone with the code can make
-// an account (the owner shares the code with friends instead of running the CLI).
+// Public sign-up: email + password + username. SIGNUP=off disables it (CLI-only
+// accounts); INVITE_CODE, if set, additionally requires that code to sign up.
+const SIGNUP = process.env.SIGNUP !== 'off';
 const INVITE_CODE = (process.env.INVITE_CODE || '').trim();
-app.get('/api/config', (_req, res) => res.json({ signup: !!INVITE_CODE }));
+app.get('/api/config', (_req, res) => res.json({ signup: SIGNUP, inviteRequired: !!INVITE_CODE }));
 
 // ICE servers for WebRTC. STUN is free; TURN (relay for strict NATs) comes from
 // env: TURN_URLS (comma-separated), TURN_USERNAME, TURN_CREDENTIAL.
@@ -115,7 +116,7 @@ app.get('/api/ice', (_req, res) => {
 
 const signupTries = new Map(); // ip -> { n, t } — slow down invite-code guessing
 app.post('/api/register', (req, res) => {
-  if (!INVITE_CODE) return res.status(403).json({ error: 'Sign-up is disabled' });
+  if (!SIGNUP) return res.status(403).json({ error: 'Sign-up is disabled' });
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const now = Date.now(); const t = signupTries.get(ip) || { n: 0, t: now };
   if (now - t.t > 15 * 60e3) { t.n = 0; t.t = now; }
@@ -123,17 +124,19 @@ app.post('/api/register', (req, res) => {
   signupTries.set(ip, t);
 
   const { email, password, displayName, code } = req.body || {};
-  if (String(code || '').trim() !== INVITE_CODE) return res.status(403).json({ error: 'Wrong invite code' });
+  if (INVITE_CODE && String(code || '').trim() !== INVITE_CODE) return res.status(403).json({ error: 'Wrong invite code' });
   const mail = String(email || '').trim().toLowerCase();
   const name = String(displayName || '').trim().slice(0, 32);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return res.status(400).json({ error: 'Enter a valid email' });
-  if (!name) return res.status(400).json({ error: 'Pick a display name' });
+  if (!name) return res.status(400).json({ error: 'Pick a username' });
   if (String(password || '').length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   if (db.find('users', (u) => u.email.toLowerCase() === mail)) return res.status(409).json({ error: 'That email already has an account' });
   const tag = String(Math.floor(1 + Math.random() * 9998)).padStart(4, '0');
   const user = db.insert('users', {
     email: mail, passwordHash: hashPassword(password), displayName: name, tag,
-    avatarColor: randColor(), globalRank: null, status: 'offline', createdAt: Date.now(),
+    avatarColor: randColor(), status: 'offline', createdAt: Date.now(),
+    // OWNER_EMAIL lets the host claim the owner rank just by signing up
+    globalRank: mail === (process.env.OWNER_EMAIL || '').trim().toLowerCase() ? 'owner' : null,
   });
   res.json({ token: signToken(user), user: publicUser(user) });
 });

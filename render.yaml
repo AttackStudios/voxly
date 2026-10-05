@@ -1,6 +1,5 @@
-# Render Blueprint — deploys Voxly as a free always-on web service.
-# After connecting this repo in the Render dashboard, set DATABASE_URL (and
-# optionally DC_SEED_OWNER) as described in HOSTING.md.
+# Render — Voxly as a free web service. Data lives in Upstash Redis (keys
+# prefixed `voxly:`), so the free tier's wiped disk doesn't lose anything.
 services:
   - type: web
     name: voxly
@@ -14,9 +13,13 @@ services:
         value: 22.12.0
       - key: ELECTRON_SKIP_BINARY_DOWNLOAD   # server never needs the Electron binary
         value: "1"
-      - key: JWT_SECRET                       # auto-generated, stable across restarts
+      - key: JWT_SECRET                       # keeps everyone logged in across restarts
         generateValue: true
-      - key: DATABASE_URL                     # set in dashboard (Supabase connection string)
+      - key: UPSTASH_REDIS_REST_URL           # Upstash → database → REST API
         sync: false
-      - key: DC_SEED_OWNER                    # optional first-run owner, e.g. owner@voxly.local::voxly123::Owner
+      - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+      - key: OWNER_EMAIL                      # this email gets the owner rank on sign-up
+        sync: false
+      # Optional: TURN_URLS / TURN_USERNAME / TURN_CREDENTIAL for strict networks,
+      # INVITE_CODE to require a code at sign-up, SIGNUP=off to close sign-up.

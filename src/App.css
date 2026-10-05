@@ -328,3 +328,5 @@ input { font-family: inherit; }
 .control-banner { background: var(--green); color: #fff; text-align: center; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 12px; }
 .control-req { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #111214; padding: 20px 28px; border-radius: 12px; z-index: 170; max-width: 420px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.6); }
 .control-req p { margin: 4px 0; }
+.auth-note a { color: var(--blurple); font-weight: 600; text-decoration: none; }
+.auth-note a:hover { text-decoration: underline; }
