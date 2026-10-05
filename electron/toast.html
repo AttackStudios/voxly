@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  #stack { position: absolute; bottom: 0; right: 0; left: 0; display: flex; flex-direction: column-reverse; gap: 10px; padding: 8px; }
+  .t { background: #111214; border: 1px solid #2b2d31; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    overflow: hidden; animation: in .2s ease; }
+  @keyframes in { from { transform: translateX(30px); opacity: 0 } to { transform: none; opacity: 1 } }
+  .head { display: flex; gap: 10px; padding: 12px; cursor: pointer; }
+  .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; flex-shrink: 0; }
+  .meta { flex: 1; min-width: 0; }
+  .title { color: #f2f3f5; font-weight: 600; font-size: 14px; }
+  .where { color: #949ba4; font-weight: 400; }
+  .body { color: #dbdee1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .x { background: none; border: none; color: #949ba4; font-size: 14px; cursor: pointer; }
+  .actions { display: flex; gap: 6px; padding: 0 12px 12px; }
+  .reply { flex: 1; background: #383a40; border: none; border-radius: 6px; padding: 8px 10px; color: #dbdee1; outline: none; }
+  .btn { background: #5865F2; border: none; color: #fff; border-radius: 6px; padding: 0 12px; cursor: pointer; }
+  .btn.call { background: #23a55a; }
+</style>
+</head>
+<body>
+<div id="stack"></div>
+<script>
+  const stack = document.getElementById('stack');
+  let count = 0;
+  const initials = (s) => (s || '?').slice(0, 2).toUpperCase();
+
+  function maybeHide() { if (count === 0) window.toastApi.hideIfEmpty(); }
+
+  window.toastApi.onData((data) => {
+    count++;
+    const el = document.createElement('div');
+    el.className = 't';
+    const where = data.kind === 'channel' && data.channelName ? ` · #${data.channelName}` : '';
+    el.innerHTML = `
+      <div class="head">
+        <div class="av" style="background:${(data.from && data.from.avatarColor) || '#5865F2'}">${initials(data.from && data.from.displayName)}</div>
+        <div class="meta">
+          <div class="title">${(data.from && data.from.displayName) || data.title || 'Message'}<span class="where">${where}</span></div>
+          <div class="body"></div>
+        </div>
+        <button class="x">✕</button>
+      </div>
+      <div class="actions">
+        <input class="reply" placeholder="Quick reply…" />
+        <button class="btn send">➤</button>
+        ${data.dmId ? '<button class="btn call">📞</button>' : ''}
+      </div>`;
+    el.querySelector('.body').textContent = data.body || '';
+    const input = el.querySelector('.reply');
+    const remove = () => { el.remove(); count--; maybeHide(); };
+    const reply = () => { const v = input.value.trim(); if (v) { window.toastApi.action({ action: 'reply', toast: data, text: v }); remove(); } };
+    el.querySelector('.head').addEventListener('click', (e) => { if (e.target.classList.contains('x')) return; window.toastApi.action({ action: 'open', toast: data }); remove(); });
+    el.querySelector('.x').addEventListener('click', remove);
+    el.querySelector('.send').addEventListener('click', reply);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') reply(); });
+    const callBtn = el.querySelector('.call');
+    if (callBtn) callBtn.addEventListener('click', () => { window.toastApi.action({ action: 'call', toast: data }); remove(); });
+    stack.appendChild(el);
+    setTimeout(remove, 9000);
+  });
+</script>
+</body>
+</html>

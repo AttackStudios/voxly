@@ -1,0 +1,22 @@
+# Render Blueprint — deploys Voxly as a free always-on web service.
+# After connecting this repo in the Render dashboard, set DATABASE_URL (and
+# optionally DC_SEED_OWNER) as described in HOSTING.md.
+services:
+  - type: web
+    name: voxly
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: ELECTRON_SKIP_BINARY_DOWNLOAD   # server never needs the Electron binary
+        value: "1"
+      - key: JWT_SECRET                       # auto-generated, stable across restarts
+        generateValue: true
+      - key: DATABASE_URL                     # set in dashboard (Supabase connection string)
+        sync: false
+      - key: DC_SEED_OWNER                    # optional first-run owner, e.g. owner@voxly.local::voxly123::Owner
+        sync: false
