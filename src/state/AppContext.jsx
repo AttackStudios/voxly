@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 import { api, setToken, getToken } from '../lib/api.js';
 import { connectSocket, disconnectSocket } from '../lib/socket.js';
 import { bus } from '../lib/bus.js';
+import { directory } from '../lib/directory.js';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -60,6 +61,7 @@ export function AppProvider({ children }) {
         setServers(data.servers);
         setDms(data.dms);
         bootSocket();
+        loadDirectory(data);
       } catch {
         setToken(null);
       }
@@ -80,6 +82,7 @@ export function AppProvider({ children }) {
     s._dcBound = true;
 
     s.on('message:new', (msg) => {
+      directory.putUsers([msg.author]);
       const k = keyFor(msg.channelId, msg.dmId);
       setMessages((prev) => {
         const arr = prev[k] || [];
@@ -108,6 +111,21 @@ export function AppProvider({ children }) {
       setServerData((sd) => (sd && sd.server.id === channel.serverId && !sd.channels.find((c) => c.id === channel.id)
         ? { ...sd, channels: [...sd.channels, channel] } : sd));
       s.emit('room:join', { channelId: channel.id });
+    });
+    s.on('server:updated', ({ server }) => applyServerUpdate(server));
+    s.on('server:deleted', ({ serverId }) => dropServer(serverId));
+    s.on('server:removed', ({ serverId }) => dropServer(serverId));
+    s.on('server:member-left', ({ serverId, userId }) =>
+      setServerData((sd) => (sd && sd.server.id === serverId ? { ...sd, members: sd.members.filter((m) => m.id !== userId) } : sd)));
+    s.on('user:updated', ({ user }) => {
+      directory.putUsers([user]);
+      setMe((m) => (m && m.id === user.id ? { ...m, ...user } : m));
+      setServerData((sd) => (sd ? { ...sd, members: sd.members.map((m) => (m.id === user.id ? { ...m, ...user } : m)) } : sd));
+      setMessages((prev) => {
+        const next = {};
+        for (const [k, arr] of Object.entries(prev)) next[k] = arr.map((m) => (m.authorId === user.id ? { ...m, author: user } : m));
+        return next;
+      });
     });
     s.on('server:member-joined', ({ serverId, member }) =>
       setServerData((sd) => (sd && sd.server.id === serverId && !sd.members.find((m) => m.id === member.id)
@@ -184,6 +202,7 @@ export function AppProvider({ children }) {
     setServers(data.servers);
     setDms(data.dms);
     bootSocket();
+    loadDirectory(data);
     return user;
   }
   function logout() {
@@ -199,6 +218,8 @@ export function AppProvider({ children }) {
     setActiveDmId(null);
     const data = await api.getServer(serverId);
     setServerData(data);
+    directory.putUsers(data.members);
+    directory.putChannels(data.channels);
     if (data.voice) setVoiceStates((v) => ({ ...v, ...data.voice })); // who's already in voice
     const firstText = data.channels.find((c) => c.type === 'text');
     if (firstText) openChannel(firstText.id);
@@ -232,9 +253,9 @@ export function AppProvider({ children }) {
   }
 
   // ---- actions ----
-  function sendMessage(content, attachments = []) {
+  function sendMessage(content, attachments = [], extra = {}) {
     const base = activeChannelId ? { channelId: activeChannelId } : { dmId: activeDmId };
-    socketRef.current?.emit('message:send', { ...base, content, attachments });
+    socketRef.current?.emit('message:send', { ...base, content, attachments, ...extra });
   }
   function editMessage(messageId, content) {
     socketRef.current?.emit('message:edit', { messageId, content });
@@ -270,6 +291,33 @@ export function AppProvider({ children }) {
     await openDM(conversation.id);
     return conversation;
   }
+  function loadDirectory(data) {
+    directory.putUsers([data.user, ...(data.dms || []).flatMap((c) => c.participants || [])]);
+    api.users().then((d) => directory.putUsers(d.users)).catch(() => {});
+  }
+  // server renamed / new icon etc. (from settings or a live event)
+  function applyServerUpdate(server) {
+    setServers((list) => list.map((s) => (s.id === server.id ? { ...s, ...server } : s)));
+    setServerData((sd) => (sd && sd.server.id === server.id ? { ...sd, server: { ...sd.server, ...server } } : sd));
+  }
+  function dropServer(serverId) {
+    setServers((list) => list.filter((s) => s.id !== serverId));
+    setServerData((sd) => {
+      if (sd && sd.server.id === serverId) { setView({ type: 'home' }); setActiveChannelId(null); return null; }
+      return sd;
+    });
+  }
+  async function leaveServer(serverId) {
+    await api.removeMember(serverId, me.id);
+    dropServer(serverId);
+  }
+  // <#channel> links in messages
+  useEffect(() => bus.on('channel:open', (c) => {
+    if (!c?.serverId) return;
+    if (view.type === 'server' && view.serverId === c.serverId) openChannel(c.id);
+    else openServer(c.serverId).then(() => openChannel(c.id));
+  }));
+
   async function setMemberRank(userId, rank) {
     if (!serverData) return;
     await api.setRank(serverData.server.id, userId, rank);
@@ -282,7 +330,7 @@ export function AppProvider({ children }) {
     socket: socketRef,
     login, register, logout, openServer, openChannel, openHome, openDM,
     sendMessage, editMessage, deleteMessage, sendTyping, createServer, joinServer, createChannel, startDM, setMemberRank,
-    setVoiceStates,
+    setVoiceStates, setMe, applyServerUpdate, leaveServer,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

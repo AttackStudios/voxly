@@ -1,3 +1,4 @@
+import { assetUrl } from '../lib/api.js';
 import { useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
 import { Modal } from './common.jsx';
@@ -28,9 +29,9 @@ export default function ServerRail() {
       {servers.map((s) => (
         <button key={s.id}
           className={`rail-icon ${view.type === 'server' && view.serverId === s.id ? 'active' : ''}`}
-          style={{ background: s.iconColor }}
+          style={{ background: s.iconUrl ? 'transparent' : s.iconColor }}
           onClick={() => openServer(s.id)} title={s.name}>
-          {s.name.slice(0, 2).toUpperCase()}
+          {s.iconUrl ? <img className="rail-img" src={assetUrl(s.iconUrl)} alt={s.name} /> : s.name.slice(0, 2).toUpperCase()}
         </button>
       ))}
       <button className="rail-icon add" onClick={() => { setErr(''); setModal('create'); }} title="Add a server">＋</button>

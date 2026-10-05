@@ -1,18 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FF8A3D"/>
-      <stop offset="1" stop-color="#E1186C"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EE7468"/>
+      <stop offset="1" stop-color="#F3B47F"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="0" width="1024" height="1024" rx="240" fill="url(#g)"/>
-  <g fill="#fff">
-    <rect x="135" y="414" width="70" height="196" rx="35"/>
-    <rect x="249" y="346" width="70" height="333" rx="35"/>
-    <rect x="363" y="277" width="70" height="470" rx="35"/>
-    <rect x="477" y="225" width="70" height="574" rx="35"/>
-    <rect x="591" y="277" width="70" height="470" rx="35"/>
-    <rect x="705" y="346" width="70" height="333" rx="35"/>
-    <rect x="819" y="414" width="70" height="196" rx="35"/>
-  </g>
+  <rect width="1024" height="1024" rx="230" fill="url(#g)"/>
+  <!-- face: rounded head with two ears and two feet -->
+  <path fill="#fff" d="
+    M 360 268
+    C 300 276 252 296 214 322
+    C 160 410 140 520 150 640
+    C 196 690 252 724 316 744
+    L 356 684
+    C 330 674 306 662 286 648
+    L 304 636
+    C 440 698 584 698 720 636
+    L 738 648
+    C 718 662 694 674 668 684
+    L 708 744
+    C 772 724 828 690 874 640
+    C 886 512 864 404 810 322
+    C 772 296 724 276 664 268
+    L 646 304
+    C 558 290 466 290 378 304
+    Z"/>
+  <!-- eyes -->
+  <ellipse cx="398" cy="500" rx="62" ry="68" fill="#EF8B6E"/>
+  <ellipse cx="626" cy="500" rx="62" ry="68" fill="#F1A074"/>
+  <!-- smile -->
+  <path d="M 392 598 Q 512 668 632 598" fill="none" stroke="#F09670" stroke-width="40" stroke-linecap="round"/>
 </svg>

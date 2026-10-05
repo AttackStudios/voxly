@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../state/AppContext.jsx';
 import { Avatar, RankBadge } from './common.jsx';
 import { bus } from '../lib/bus.js';
+import { openProfile } from './ProfileCard.jsx';
 
 export default function MemberList() {
   const { view, serverData, me, presence, setMemberRank, startDM } = useApp();
@@ -25,12 +26,14 @@ export default function MemberList() {
   function MemberRow(m) {
     return (
       <button key={m.id} className="member-row"
-        onClick={(e) => setMenu({ member: m, x: e.clientX, y: e.clientY })}>
+        onClick={(e) => openProfile(e, m.id, serverData.server.id)}
+        onContextMenu={(e) => { e.preventDefault(); setMenu({ member: m, x: e.clientX, y: e.clientY }); }}>
         <Avatar user={m} size={32} status={m.live} />
         <div className="member-meta">
           <span className="member-name" style={{ color: m.globalRankMeta?.color || m.serverRank.color }}>
-            {m.nickname || m.displayName}
+            {m.nickname || m.displayName}{m.bot && <span className="bot-tag">✓ BOT</span>}
           </span>
+          {m.customStatus && <span className="member-status">{m.customStatus}</span>}
           <div className="member-badges">
             {m.globalRankMeta && <RankBadge rank={m.globalRankMeta} />}
             <span className="server-rank" style={{ color: m.serverRank.color }}>{m.serverRank.label}</span>

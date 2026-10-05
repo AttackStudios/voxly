@@ -61,4 +61,17 @@ export const api = {
   getDMs: () => req('GET', '/api/dms'),
   addToDM: (id, userId) => req('POST', `/api/dms/${id}/add`, { userId }),
   dmMessages: (id) => req('GET', `/api/dms/${id}/messages`),
+
+  profile: (userId, serverId) => req('GET', `/api/users/${userId}/profile${serverId ? `?serverId=${serverId}` : ''}`),
+  updateServer: (id, patch) => req('PATCH', `/api/servers/${id}`, patch),
+  newInvite: (id) => req('POST', `/api/servers/${id}/invite`),
+  deleteServer: (id) => req('DELETE', `/api/servers/${id}`),
+  removeMember: (serverId, userId) => req('DELETE', `/api/servers/${serverId}/members/${userId}`),
+  addBot: (serverId, botId) => req('POST', `/api/servers/${serverId}/bots`, { botId }),
+
+  bots: () => req('GET', '/api/bots'),
+  createBot: (body) => req('POST', '/api/bots', body),
+  updateBot: (id, patch) => req('PATCH', `/api/bots/${id}`, patch),
+  resetBotToken: (id) => req('POST', `/api/bots/${id}/token`),
+  deleteBot: (id) => req('DELETE', `/api/bots/${id}`),
 };

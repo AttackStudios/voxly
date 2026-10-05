@@ -82,20 +82,39 @@ function NewDMModal({ onClose, onCreate }) {
 }
 
 function ServerPanel() {
-  const { serverData, activeChannelId, openChannel, createChannel, voiceStates } = useApp();
+  const { serverData, activeChannelId, openChannel, createChannel, voiceStates, me, leaveServer } = useApp();
   const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [menu, setMenu] = useState(false);
   if (!serverData) return null;
   const { server, channels, myRank, isOwner } = serverData;
   const canManage = isOwner || ['admin', 'mod'].includes(myRank.key);
+  const canSettings = isOwner || myRank.key === 'admin' || ['owner', 'staff'].includes(me.globalRank);
   const text = channels.filter((c) => c.type === 'text');
   const voice = channels.filter((c) => c.type === 'voice');
 
   return (
     <>
-      <div className="panel-head server-head" onClick={() => setShowInvite(true)} title="Invite / settings">
-        <span>{server.name}</span><span className="chev">▾</span>
+      <div className={`panel-head server-head ${menu ? 'open' : ''}`} onClick={() => setMenu((v) => !v)}>
+        <span>{server.name}</span><span className="chev">{menu ? '✕' : '▾'}</span>
       </div>
+      {menu && (
+        <>
+          <div className="ctx-backdrop" onClick={() => setMenu(false)} />
+          <div className="server-menu" onClick={() => setMenu(false)}>
+            <button className="sm-item accent" onClick={() => setShowInvite(true)}>Invite People <span>👤＋</span></button>
+            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'overview' })}>Server Settings <span>⚙️</span></button>}
+            {canManage && <button className="sm-item" onClick={() => setShowCreate('text')}>Create Channel <span>＋</span></button>}
+            {canSettings && <button className="sm-item" onClick={() => bus.emit('server-settings:open', { tab: 'bots' })}>Add a Bot <span>🤖</span></button>}
+            {!isOwner && (
+              <>
+                <div className="sm-sep" />
+                <button className="sm-item danger" onClick={() => { if (window.confirm(`Leave ${server.name}?`)) leaveServer(server.id); }}>Leave Server <span>⎋</span></button>
+              </>
+            )}
+          </div>
+        </>
+      )}
       <div className="channel-list">
         <div className="chan-cat">TEXT CHANNELS {canManage && <button className="icon-btn sm" onClick={() => setShowCreate('text')}>＋</button>}</div>
         {text.map((c) => (
@@ -148,7 +167,7 @@ function InviteModal({ server, onClose }) {
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <p className="auth-note">They enter it via the 🔗 button on the left rail. (Accounts are still invite-only — created by the owner.)</p>
+      <p className="auth-note">They enter it via the 🔗 button on the left rail of Voxly.</p>
     </Modal>
   );
 }

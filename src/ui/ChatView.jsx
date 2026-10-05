@@ -3,32 +3,19 @@ import { useApp } from '../state/AppContext.jsx';
 import { Avatar } from './common.jsx';
 import { bus } from '../lib/bus.js';
 import { uploadImage, assetUrl } from '../lib/api.js';
-import { extractYouTubeIds, linkifyParts } from '../lib/links.js';
+import { extractYouTubeIds } from '../lib/links.js';
+import { renderMarkup } from '../lib/markup.jsx';
+import { directory, useDirectory } from '../lib/directory.js';
+import Embed from './Embed.jsx';
+import { openProfile } from './ProfileCard.jsx';
 import YouTubeEmbed from './YouTubeEmbed.jsx';
-
-const normName = (s) => s.replace(/[\s.]+/g, '').toLowerCase();
-
-// Render message text with clickable links and highlighted @mentions.
-function renderContent(text, myName) {
-  const mine = myName ? normName(myName) : null;
-  return linkifyParts(text).map((p, i) => {
-    if (p.url) return <a key={i} href={p.url} target="_blank" rel="noreferrer" className="msg-link">{p.url}</a>;
-    // split the plain text on @mention tokens and wrap them
-    const parts = p.text.split(/(@[\w.]+)/g);
-    return parts.map((seg, j) => {
-      if (/^@[\w.]+$/.test(seg)) {
-        const isMe = mine && (normName(seg.slice(1)) === mine || /^@(everyone|here)$/i.test(seg));
-        return <span key={i + '-' + j} className={`mention ${isMe ? 'me' : ''}`}>{seg}</span>;
-      }
-      return <span key={i + '-' + j}>{seg}</span>;
-    });
-  });
-}
 
 export default function ChatView({ showMembers, toggleMembers }) {
   const app = useApp();
   const { me, view, serverData, activeChannelId, activeDmId, dms, messages, sendMessage, editMessage, deleteMessage, sendTyping, typing, presence } = app;
+  useDirectory(); // re-render when names behind <@id> mentions load
   const [editingId, setEditingId] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
   const [editText, setEditText] = useState('');
   const canModerate = !!(serverData && (serverData.isOwner || ['admin', 'mod'].includes(serverData.myRank?.key)));
 
@@ -51,7 +38,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
   const lastTyped = useRef(0);
 
   // clear staged images when switching channels/DMs
-  useEffect(() => { setPending([]); setText(''); }, [key]);
+  useEffect(() => { setPending([]); setText(''); setReplyTo(null); }, [key]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -74,9 +61,10 @@ export default function ChatView({ showMembers, toggleMembers }) {
     const t = text.trim();
     if (!t && pending.length === 0) return;
     if (uploading) return; // wait for uploads to finish
-    sendMessage(t, pending.map(({ url, name, type, size }) => ({ url, name, type, size })));
+    sendMessage(t, pending.map(({ url, name, type, size }) => ({ url, name, type, size })), replyTo ? { replyToId: replyTo.id } : {});
     setText('');
     setPending([]);
+    setReplyTo(null);
   }
   function onChange(e) {
     setText(e.target.value);
@@ -143,18 +131,31 @@ export default function ChatView({ showMembers, toggleMembers }) {
         </div>
         {list.map((m, i) => {
           const prev = list[i - 1];
-          const grouped = prev && prev.authorId === m.authorId && (m.createdAt - prev.createdAt < 5 * 60 * 1000);
+          const grouped = !m.replyTo && prev && prev.authorId === m.authorId && (m.createdAt - prev.createdAt < 5 * 60 * 1000);
+          const serverId = isServer ? serverData?.server.id : undefined;
+          const mdOpts = { meId: me.id, meName: me.displayName, serverId,
+            mentionNames: (m.mentions || []).map((id) => directory.user(id)?.displayName).filter(Boolean) };
+          const mentionsMe = (m.mentions || []).includes(me.id);
           const mine = m.authorId === me.id;
           const editing = editingId === m.id;
           const startEdit = () => { setEditingId(m.id); setEditText(m.content || ''); };
           const saveEdit = () => { const t = editText.trim(); if (t) editMessage(m.id, t); setEditingId(null); };
           return (
-            <div key={m.id} className={`msg ${grouped ? 'grouped' : ''}`}>
-              {!grouped && <Avatar user={m.author} size={40} />}
-              <div className="msg-body">
+            <div key={m.id} className={`msg ${grouped ? 'grouped' : ''} ${m.replyTo ? 'has-reply' : ''} ${mentionsMe ? 'mentioned' : ''}`}>
+              {m.replyTo && (
+                <div className="msg-reply-ref" onClick={() => document.getElementById(`m-${m.replyTo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                  <span className="reply-spine" />
+                  <Avatar user={m.replyTo.author} size={16} />
+                  <span className="reply-name" style={{ color: m.replyTo.author?.globalRankMeta?.color }}>@{m.replyTo.author?.displayName}</span>
+                  <span className="reply-text">{m.replyTo.content || 'Click to see attachment'}</span>
+                </div>
+              )}
+              {!grouped && <button className="msg-av-btn" onClick={(e) => openProfile(e, m.authorId, serverId)}><Avatar user={m.author} size={40} /></button>}
+              <div className="msg-body" id={`m-${m.id}`}>
                 {!grouped && (
                   <div className="msg-head">
-                    <span className="msg-author" style={{ color: m.author?.globalRankMeta?.color }}>{m.author?.displayName}</span>
+                    <span className="msg-author" style={{ color: m.author?.globalRankMeta?.color }} onClick={(e) => openProfile(e, m.authorId, serverId)}>{m.author?.displayName}</span>
+                    {m.author?.bot && <span className="bot-tag">✓ BOT</span>}
                     {m.author?.globalRankMeta && <span className="rank-badge" style={{ background: m.author.globalRankMeta.color }}>{m.author.globalRankMeta.label}</span>}
                     <span className="msg-time">{new Date(m.createdAt).toLocaleString()}</span>
                   </div>
@@ -166,9 +167,10 @@ export default function ChatView({ showMembers, toggleMembers }) {
                     <div className="msg-edit-hint">escape to <button className="link-btn" onClick={() => setEditingId(null)}>cancel</button> · enter to <button className="link-btn" onClick={saveEdit}>save</button></div>
                   </div>
                 ) : (
-                  m.content && <div className="msg-content">{renderContent(m.content, me.displayName)}{m.editedAt && <span className="edited-tag" title={new Date(m.editedAt).toLocaleString()}> (edited)</span>}</div>
+                  m.content && <div className="msg-content">{renderMarkup(m.content, mdOpts)}{m.editedAt && <span className="edited-tag" title={new Date(m.editedAt).toLocaleString()}> (edited)</span>}</div>
                 )}
                 {!editing && extractYouTubeIds(m.content || '').map((vid) => <YouTubeEmbed key={vid} id={vid} />)}
+                {m.embeds?.map((e, j) => <Embed key={j} e={e} opts={mdOpts} />)}
                 {m.attachments?.length > 0 && (
                   <div className="msg-attachments">
                     {m.attachments.map((a, j) => (
@@ -179,10 +181,11 @@ export default function ChatView({ showMembers, toggleMembers }) {
                   </div>
                 )}
               </div>
-              {!editing && (mine || canModerate) && (
+              {!editing && (
                 <div className="msg-actions">
+                  <button title="Reply" onClick={() => setReplyTo(m)}>↩️</button>
                   {mine && m.content && <button title="Edit" onClick={startEdit}>✏️</button>}
-                  <button title="Delete" onClick={() => { if (window.confirm('Delete this message?')) deleteMessage(m.id); }}>🗑️</button>
+                  {(mine || canModerate) && <button title="Delete" onClick={() => { if (window.confirm('Delete this message?')) deleteMessage(m.id); }}>🗑️</button>}
                 </div>
               )}
             </div>
@@ -206,13 +209,20 @@ export default function ChatView({ showMembers, toggleMembers }) {
         </div>
       )}
 
-      <form className={`composer ${dragOver ? 'drag' : ''}`} onSubmit={submit}
+      {replyTo && (
+        <div className="reply-bar">
+          Replying to <b>{replyTo.author?.displayName}</b>
+          <button type="button" onClick={() => setReplyTo(null)} title="Cancel reply">✕</button>
+        </div>
+      )}
+      <form className={`composer ${dragOver ? 'drag' : ''} ${replyTo ? 'replying' : ''}`} onSubmit={submit}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
         <input type="file" accept="image/*" multiple ref={fileInputRef} style={{ display: 'none' }}
           onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
         <button type="button" className="attach-btn" title="Upload image" onClick={() => fileInputRef.current?.click()}>＋</button>
         <input className="composer-text" value={text} onChange={onChange} onPaste={onPaste}
+          onKeyDown={(e) => { if (e.key === 'Escape' && replyTo) setReplyTo(null); }}
           placeholder={dragOver ? 'Drop images to upload…' : `Message ${isServer ? '#' + title : title}`} />
         <button className="send-btn" type="submit" disabled={uploading}>{uploading ? 'Uploading…' : 'Send'}</button>
       </form>

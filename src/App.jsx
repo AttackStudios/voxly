@@ -7,6 +7,8 @@ import ChatView from './ui/ChatView.jsx';
 import MemberList from './ui/MemberList.jsx';
 import Toasts from './ui/Toasts.jsx';
 import CallOverlay from './ui/CallOverlay.jsx';
+import ProfileLayer from './ui/ProfileCard.jsx';
+import SettingsLayer from './ui/Settings.jsx';
 
 export default function App() {
   const { me, loading } = useApp();
@@ -23,6 +25,8 @@ export default function App() {
       {showMembers && <MemberList />}
       <Toasts />
       <CallOverlay />
+      <ProfileLayer />
+      <SettingsLayer />
     </div>
   );
 }
