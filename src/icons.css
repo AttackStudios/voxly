@@ -56,3 +56,11 @@
 .admin-name { font-weight: 600; color: var(--text-bright); display: flex; align-items: center; flex-wrap: wrap; }
 .st-content input.admin-tag { width: 64px; text-align: center; font-family: Consolas, monospace; padding: 6px; }
 .st-toggle.small { font-size: 13px; gap: 8px; }
+
+/* ---------- Media embeds (Streamable, Vimeo, Spotify…) ---------- */
+.media-embed { position: relative; margin-top: 8px; width: 480px; max-width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
+.media-embed.fixed { aspect-ratio: auto; background: transparent; }
+.media-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.media-embed-src { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-decoration: none; opacity: 0; transition: opacity .15s; pointer-events: auto; }
+.media-embed:hover .media-embed-src { opacity: 1; }
+.media-embed.fixed .media-embed-src { display: none; }

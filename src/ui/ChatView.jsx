@@ -9,6 +9,8 @@ import { directory, useDirectory } from '../lib/directory.js';
 import Embed from './Embed.jsx';
 import { openProfile } from './ProfileCard.jsx';
 import YouTubeEmbed from './YouTubeEmbed.jsx';
+import MediaEmbed from './MediaEmbed.jsx';
+import { extractEmbeds } from '../lib/embeds.js';
 import Icon from './Icon.jsx';
 import { UserTags } from './common.jsx';
 
@@ -138,6 +140,7 @@ export default function ChatView({ showMembers, toggleMembers }) {
           const mdOpts = { meId: me.id, meName: me.displayName, serverId,
             mentionNames: (m.mentions || []).map((id) => directory.user(id)?.displayName).filter(Boolean) };
           const mentionsMe = (m.mentions || []).includes(me.id);
+          const media = extractEmbeds(m.content || '');
           const mine = m.authorId === me.id;
           const editing = editingId === m.id;
           const startEdit = () => { setEditingId(m.id); setEditText(m.content || ''); };
@@ -169,9 +172,10 @@ export default function ChatView({ showMembers, toggleMembers }) {
                     <div className="msg-edit-hint">escape to <button className="link-btn" onClick={() => setEditingId(null)}>cancel</button> · enter to <button className="link-btn" onClick={saveEdit}>save</button></div>
                   </div>
                 ) : (
-                  m.content && <div className="msg-content">{renderMarkup(m.content, mdOpts)}{m.editedAt && <span className="edited-tag" title={new Date(m.editedAt).toLocaleString()}> (edited)</span>}</div>
+                  media.text && <div className="msg-content">{renderMarkup(media.text, mdOpts)}{m.editedAt && <span className="edited-tag" title={new Date(m.editedAt).toLocaleString()}> (edited)</span>}</div>
                 )}
-                {!editing && extractYouTubeIds(m.content || '').map((vid) => <YouTubeEmbed key={vid} id={vid} />)}
+                {!editing && extractYouTubeIds(media.text).map((vid) => <YouTubeEmbed key={vid} id={vid} />)}
+                {!editing && media.embeds.map((e) => <MediaEmbed key={e.src} e={e} />)}
                 {m.embeds?.map((e, j) => <Embed key={j} e={e} opts={mdOpts} />)}
                 {m.attachments?.length > 0 && (
                   <div className="msg-attachments">

@@ -591,7 +591,7 @@ function postMessage(uid, data) {
   const full = fullMessage(msg);
   io.to(room).emit('message:new', full);
   const from = publicUser(db.byId('users', uid));
-  const preview = msg.content || embeds[0]?.title || embeds[0]?.description ||
+  const preview = msg.content.replace(/<div[^>]*>\s*<iframe[\s\S]*?<\/iframe>\s*<\/div>|<iframe[\s\S]*?(?:<\/iframe>|\/>)/gi, '[video]').trim() || embeds[0]?.title || embeds[0]?.description ||
     (attachments.length ? `📷 ${attachments.length > 1 ? attachments.length + ' images' : 'Image'}` : '');
   const sendNotify = (toId, extra) =>
     io.to(`user:${toId}`).emit('notify', { from, content: preview, mention: mentions.includes(toId), ...extra });
