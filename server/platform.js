@@ -128,6 +128,31 @@ export function mountPlatform(app, ctx) {
     res.json({ member: memberView(bot.id, s.id) });
   });
 
+  // ================= SHORT-LINK RESOLVER (TikTok share links) =================
+  // Only follows redirects for known short-link hosts, and only returns the
+  // final URL — never page content. Results are cached.
+  const SHORT_HOSTS = /^https:\/\/(?:vm\.tiktok\.com|vt\.tiktok\.com|(?:www\.)?tiktok\.com\/t)\/[A-Za-z0-9]+\/?$/i;
+  const resolved = new Map();
+  app.get('/api/resolve-link', requireAuth, async (req, res) => {
+    const url = String(req.query.url || '').trim();
+    if (!SHORT_HOSTS.test(url)) return res.status(400).json({ error: 'Unsupported link' });
+    if (resolved.has(url)) return res.json({ url: resolved.get(url) });
+    try {
+      let cur = url;
+      for (let hop = 0; hop < 4; hop++) {
+        const r = await fetch(cur, { redirect: 'manual', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VoxlyBot/1.0)' }, signal: AbortSignal.timeout(6000) });
+        const loc = r.headers.get('location');
+        if (!loc || r.status < 300 || r.status >= 400) break;
+        cur = new URL(loc, cur).toString();
+        if (/tiktok\.com\/@[\w.-]*\/video\/\d+/.test(cur)) break;
+      }
+      const final = /^https:\/\/(?:www\.|m\.)?tiktok\.com\//.test(cur) ? cur.split('?')[0] : null;
+      if (resolved.size > 2000) resolved.clear();
+      resolved.set(url, final);
+      res.json({ url: final });
+    } catch { res.json({ url: null }); }
+  });
+
   // ================= ADMIN (global owner only) =================
   const requireOwner = (req, res, next) =>
     (db.byId('users', req.userId)?.globalRank === 'owner' ? next() : res.status(403).json({ error: 'Owner only' }));

@@ -71,6 +71,7 @@ export const api = {
 
   adminUsers: (q) => req('GET', `/api/admin/users?q=${encodeURIComponent(q || '')}`),
   adminUpdateUser: (id, patch) => req('PATCH', `/api/admin/users/${id}`, patch),
+  resolveLink: (url) => req('GET', `/api/resolve-link?url=${encodeURIComponent(url)}`),
   bots: () => req('GET', '/api/bots'),
   createBot: (body) => req('POST', '/api/bots', body),
   updateBot: (id, patch) => req('PATCH', `/api/bots/${id}`, patch),
